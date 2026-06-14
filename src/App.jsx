@@ -6,8 +6,13 @@ import Details from "./pages_men/Details.jsx";
 import Homepage from "./pages_men/Homepage.jsx";
 import Loginpage from "./pages_men/Loginpage.jsx";
 import Signuppage from "./pages_men/Signuppage.jsx";
+<<<<<<< HEAD
 import Students from "./pages_men/Students.jsx";
 
+=======
+import ProtectedRoute from "./component/ProtectedRoute.jsx";
+import Students from "./pages_men/Students.jsx";
+>>>>>>> 25cec62 (updated signup, dashboard and supabase integration)
 
 export default function App() {
   return (
@@ -21,9 +26,10 @@ export default function App() {
         <Route path="/login" element={<Loginpage />} />
         <Route path="/signup" element={<Signuppage />} />
 
-        {/* Dashboards */}
-        <Route path="/admin" element={<Admindashboard />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/admin" element={<Admindashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
 
         {/* Students System */}
         <Route path="/students" element={<Students />} />

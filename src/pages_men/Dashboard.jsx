@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -8,13 +9,34 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const loggedUser = JSON.parse(localStorage.getItem("user"));
-    setUser(loggedUser);
-  }, []);
+    const loadUserProfile = async () => {
+      const authUser = JSON.parse(localStorage.getItem("user"));
 
-  // 🚪 LOGOUT FUNCTION
+      if (!authUser) {
+        navigate("/login");
+        return;
+      }
+
+      // 🔥 FETCH REAL DATA FROM SUPABASE
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("Email", authUser.email)
+        .single();
+
+      if (error) {
+        console.log("PROFILE FETCH ERROR:", error.message);
+        return;
+      }
+
+      setUser(data);
+    };
+
+    loadUserProfile();
+  }, [navigate]);
+
   const handleLogout = () => {
-    localStorage.removeItem("user"); // clear session
+    localStorage.removeItem("user");
     setShowLogoutModal(false);
 
     setTimeout(() => {
@@ -45,7 +67,6 @@ export default function Dashboard() {
           <li>Settings</li>
         </ul>
 
-        {/* 🚪 LOGOUT BUTTON */}
         <button
           onClick={() => setShowLogoutModal(true)}
           className="mt-10 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600"
@@ -58,10 +79,10 @@ export default function Dashboard() {
       {/* MAIN CONTENT */}
       <div className="flex-1 p-4 md:p-6">
 
-        {/* TOP HEADER */}
+        {/* HEADER */}
         <div className="bg-white p-4 md:p-6 rounded-xl shadow mb-6">
           <h1 className="text-xl md:text-2xl font-bold">
-            Hi, {user.firstName} {user.lastName}
+            Hi, {user.FullName}
           </h1>
           <p className="text-gray-500">
             Welcome to your student dashboard
@@ -73,17 +94,17 @@ export default function Dashboard() {
 
           <div className="bg-yellow-300 p-4 rounded-xl">
             Email<br />
-            <b>{user.email}</b>
+            <b>{user.Email}</b>
           </div>
 
           <div className="bg-purple-300 p-4 rounded-xl">
             Nationality<br />
-            <b>{user.nationality}</b>
+            <b>{user.Nationality}</b>
           </div>
 
           <div className="bg-pink-300 p-4 rounded-xl">
             DOB<br />
-            <b>{user.dateOfBirth}</b>
+            <b>{user.DateofBirth}</b>
           </div>
 
         </div>
@@ -97,20 +118,18 @@ export default function Dashboard() {
 
           <div className="space-y-3 text-gray-700">
 
-            <p><b>First Name:</b> {user.firstName}</p>
-            <p><b>Last Name:</b> {user.lastName}</p>
-            <p><b>Email:</b> {user.email}</p>
-            <p><b>Password:</b> {user.password}</p>
-            <p><b>Date of Birth:</b> {user.dateOfBirth}</p>
-            <p><b>Nationality:</b> {user.nationality}</p>
-            <p><b>Address:</b> {user.houseAddress}</p>
+            <p><b>Full Name:</b> {user.FullName}</p>
+            <p><b>Email:</b> {user.Email}</p>
+            <p><b>Date of Birth:</b> {user.DateofBirth}</p>
+            <p><b>Nationality:</b> {user.Nationality}</p>
+            <p><b>Address:</b> {user.HouseAddress}</p>
 
           </div>
 
         </div>
       </div>
 
-      {/* 🚨 LOGOUT MODAL */}
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
 

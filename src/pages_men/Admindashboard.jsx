@@ -1,8 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { supabase } from "../supabaseClient";
 
 const ADMIN = {
-  email: "gift067@gmail.com",
+  email: "favourabel150@gmail.com",
   password: "88888888",
 };
 
@@ -10,7 +11,7 @@ export default function Admindashboard() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
-  const [open, setOpen] = useState(false); // MOBILE SIDEBAR
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const loggedUser = JSON.parse(localStorage.getItem("user"));
@@ -28,25 +29,29 @@ export default function Admindashboard() {
       return;
     }
 
-    const loadStudents = () => {
-      const users = JSON.parse(localStorage.getItem("users")) || [];
-      const onlyStudents = users.filter(
-        (user) => user.role === "student"
-      );
+    // 🔥 LOAD FROM SUPABASE (FIX)
+    const loadStudents = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "student");
 
-      setStudents(onlyStudents);
+      if (error) {
+        console.log("FETCH ERROR:", error.message);
+        return;
+      }
+
+      setStudents(data);
     };
 
     loadStudents();
 
+    // realtime refresh (optional but helpful)
     const handleStudentUpdate = () => {
       loadStudents();
     };
 
     window.addEventListener("studentsUpdated", handleStudentUpdate);
-    window.addEventListener("storage", (e) => {
-      if (e.key === "users") loadStudents();
-    });
 
     return () => {
       window.removeEventListener("studentsUpdated", handleStudentUpdate);
@@ -140,8 +145,7 @@ export default function Admindashboard() {
             <thead>
               <tr>
                 <th className="border p-3">S/N</th>
-                <th className="border p-3">First Name</th>
-                <th className="border p-3">Last Name</th>
+                <th className="border p-3">Full Name</th>
                 <th className="border p-3">Email</th>
               </tr>
             </thead>
@@ -151,14 +155,17 @@ export default function Admindashboard() {
                 students.map((student, index) => (
                   <tr key={index}>
                     <td className="border p-3">{index + 1}</td>
-                    <td className="border p-3">{student.firstName || "-"}</td>
-                    <td className="border p-3">{student.lastName || "-"}</td>
-                    <td className="border p-3">{student.email || "-"}</td>
+                    <td className="border p-3">
+                      {student.FullName || "-"}
+                    </td>
+                    <td className="border p-3">
+                      {student.Email || "-"}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="text-center p-5">
+                  <td colSpan="3" className="text-center p-5">
                     No students registered yet
                   </td>
                 </tr>
@@ -170,7 +177,6 @@ export default function Admindashboard() {
         </div>
 
       </div>
-
     </div>
   );
 }

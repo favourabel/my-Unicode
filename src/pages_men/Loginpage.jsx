@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
 const ADMIN = {
-  email: "gift067@gmail.com",
-  password: "88888888",
-  role: "admin",
+  email: "favourabel150@gmail.com",
+  password: "88888888", // FIXED (must match real value)
 };
 
 export default function Loginpage() {
@@ -12,58 +12,63 @@ export default function Loginpage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
-    const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
+    try {
+      const { data, error } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-    // 👑 ADMIN LOGIN (HIGHEST PRIORITY)
-    if (
-      cleanEmail === ADMIN.email &&
-      cleanPassword === ADMIN.password
-    ) {
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          email: ADMIN.email,
-          role: "admin",
-        })
-      );
+      if (error) {
+        alert(error.message);
+        setLoading(false);
+        return;
+      }
 
-      setTimeout(() => {
+      const user = data?.user;
+
+      if (!user) {
+        alert("Login failed: no user returned");
+        setLoading(false);
+        return;
+      }
+
+      // ADMIN CHECK (unchanged logic)
+      if (user.email === ADMIN.email) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            email: user.email,
+            role: "admin",
+          })
+        );
+
         navigate("/admin");
-      }, 500);
+        return;
+      }
 
-      return;
-    }
-
-    // 🎓 STUDENT LOGIN
-    const studentUser = users.find(
-      (u) =>
-        u.email === cleanEmail &&
-        u.password === cleanPassword
-    );
-
-    if (studentUser) {
+      // NORMAL USER
       localStorage.setItem(
         "user",
         JSON.stringify({
-          ...studentUser,
-          role: "student",
+          email: user.email,
+          role: "user",
         })
       );
 
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
-
-      return;
+      navigate("/dashboard");
+    } catch (err) {
+      console.log("LOGIN ERROR:", err);
+      alert("Something went wrong");
+    } finally {
+      setLoading(false);
     }
-
-    // ❌ INVALID LOGIN
-    alert("Invalid login details");
   };
 
   return (
@@ -90,9 +95,10 @@ export default function Loginpage() {
 
         <button
           onClick={handleLogin}
+          disabled={loading}
           className="w-full bg-blue-500 text-white py-3 rounded hover:bg-blue-600"
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </div>
     </div>
