@@ -9,7 +9,6 @@ import Signuppage from "./pages_men/Signuppage.jsx";
 import Students from "./pages_men/Students.jsx";
 
 import ProtectedRoute from "./component/ProtectedRoute.jsx";
-import Students from "./pages_men/Students.jsx";
 
 export default function App() {
   return (
