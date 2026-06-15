@@ -9,9 +9,8 @@ const ADMIN = {
 
 export default function Admindashboard() {
   const navigate = useNavigate();
-
   const [students, setStudents] = useState([]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // Used for mobile sidebar toggle
 
   useEffect(() => {
     const loggedUser = JSON.parse(localStorage.getItem("user"));
@@ -21,15 +20,11 @@ export default function Admindashboard() {
       return;
     }
 
-    if (
-      loggedUser.role !== "admin" ||
-      loggedUser.email !== ADMIN.email
-    ) {
+    if (loggedUser.role !== "admin" || loggedUser.email !== ADMIN.email) {
       navigate("/dashboard");
       return;
     }
 
-    // 🔥 LOAD FROM SUPABASE (FIX)
     const loadStudents = async () => {
       const { data, error } = await supabase
         .from("profiles")
@@ -40,29 +35,18 @@ export default function Admindashboard() {
         console.log("FETCH ERROR:", error.message);
         return;
       }
-
       setStudents(data);
     };
 
     loadStudents();
 
-    // realtime refresh (optional but helpful)
-    const handleStudentUpdate = () => {
-      loadStudents();
-    };
-
+    const handleStudentUpdate = () => loadStudents();
     window.addEventListener("studentsUpdated", handleStudentUpdate);
-
-    return () => {
-      window.removeEventListener("studentsUpdated", handleStudentUpdate);
-    };
+    return () => window.removeEventListener("studentsUpdated", handleStudentUpdate);
   }, [navigate]);
 
   const handleLogout = () => {
-    const confirmLogout = window.confirm(
-      "Are you sure you want to log out?"
-    );
-
+    const confirmLogout = window.confirm("Are you sure you want to log out?");
     if (confirmLogout) {
       localStorage.removeItem("user");
       navigate("/login");
@@ -70,112 +54,108 @@ export default function Admindashboard() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen">
-
-      {/* MOBILE TOP BAR */}
-      <div className="md:hidden bg-[#0f172a] text-white p-4 flex justify-between items-center">
-        <h2>Admin</h2>
-
-        <button
-          onClick={() => setOpen(!open)}
-          className="text-white text-2xl"
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
+      
+      {/* MOBILE HAMBURGER BUTTON */}
+      <div className="md:hidden p-4 fixed top-0 left-0 z-50">
+        <button 
+          onClick={() => setOpen(!open)} 
+          className="p-2 bg-slate-900 text-white rounded-lg shadow-lg h-[50px] w-[50px]"
         >
-          ☰
+          {open ? "✕" : "☰"}
         </button>
       </div>
 
       {/* SIDEBAR */}
       <div
-        className={`bg-[#0f172a] text-white p-5 md:w-[220px] w-full ${
-          open ? "block" : "hidden"
-        } md:block`}
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 transform transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        } md:static md:block shadow-xl`}
       >
-        <h2>University Admin</h2>
+        <div className="p-6 mt-16 md:mt-0">
+          <h2 className="text-white text-sm font-bold tracking-widest mb-8 uppercase">
+            Admin Portal
+          </h2>
 
-        <div className="mt-[30px] flex flex-col gap-[15px]">
-          <p onClick={() => navigate("/admin")} className="cursor-pointer">
-            Dashboard
-          </p>
+          <div className="flex flex-col gap-2 font-medium">
+            <p 
+              onClick={() => navigate("/admin")} 
+              className="cursor-pointer px-4 py-3 rounded-lg bg-slate-800 text-white transition-colors"
+            >
+              Dashboard
+            </p>
+            <p 
+              onClick={() => navigate("/students")} 
+              className="cursor-pointer px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition-colors"
+            >
+              Students
+            </p>
 
-          <p onClick={() => navigate("/students")} className="cursor-pointer">
-            Students
-          </p>
-
-          <p
-            onClick={handleLogout}
-            className="cursor-pointer text-red-500 font-bold"
-          >
-            Logout
-          </p>
+            <div className="mt-8 pt-6 border-t border-slate-700/50">
+              <p
+                onClick={handleLogout}
+                className="cursor-pointer px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+              >
+                Logout
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* MAIN DASHBOARD */}
-      <div className="flex-1 p-5 bg-[#f1f5f9]">
+      <div className="flex-1 p-6 md:p-10 overflow-y-auto mt-16 md:mt-0 w-full">
 
-        <h2>Dashboard Overview</h2>
+        <h1 className="text-3xl font-bold text-slate-800 mb-8">Dashboard Overview</h1>
 
         {/* STATISTICS */}
-        <div className="flex flex-col md:flex-row gap-4 mt-5">
-
-          <div className="bg-blue-600 text-white p-4 rounded-lg flex-1">
-            <h3>Total Students</h3>
-            <h1>{students.length}</h1>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-blue-500">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Students</h3>
+            <h1 className="text-4xl font-bold text-slate-800 mt-2">{students.length}</h1>
           </div>
-
-          <div className="bg-green-600 text-white p-4 rounded-lg flex-1">
-            <h3>Active Students</h3>
-            <h1>{students.length}</h1>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-emerald-500">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Students</h3>
+            <h1 className="text-4xl font-bold text-slate-800 mt-2">{students.length}</h1>
           </div>
-
-          <div className="bg-orange-500 text-white p-4 rounded-lg flex-1">
-            <h3>Pending</h3>
-            <h1>0</h1>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-orange-400">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Approvals</h3>
+            <h1 className="text-4xl font-bold text-slate-800 mt-2">0</h1>
           </div>
-
         </div>
 
         {/* TABLE */}
-        <div className="bg-white mt-6 p-5 rounded-lg overflow-x-auto">
-
-          <h2>Registered Students</h2>
-
-          <table className="w-full border-collapse mt-5 min-w-[600px]">
-
-            <thead>
-              <tr>
-                <th className="border p-3">S/N</th>
-                <th className="border p-3">Full Name</th>
-                <th className="border p-3">Email</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {students.length > 0 ? (
-                students.map((student, index) => (
-                  <tr key={index}>
-                    <td className="border p-3">{index + 1}</td>
-                    <td className="border p-3">
-                      {student.FullName || "-"}
-                    </td>
-                    <td className="border p-3">
-                      {student.Email || "-"}
-                    </td>
-                  </tr>
-                ))
-              ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-100">
+            <h2 className="text-xl font-bold text-slate-800">Registered Students</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <td colSpan="3" className="text-center p-5">
-                    No students registered yet
-                  </td>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">S/N</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Full Name</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Email</th>
                 </tr>
-              )}
-            </tbody>
-
-          </table>
-
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {students.length > 0 ? (
+                  students.map((student, index) => (
+                    <tr key={index} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-500 font-medium">{index + 1}</td>
+                      <td className="px-6 py-4 text-sm text-slate-800 font-medium">{student.FullName || "-"}</td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{student.Email || "-"}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" className="px-6 py-10 text-center text-slate-500">No students found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-
       </div>
     </div>
   );

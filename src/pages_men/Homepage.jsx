@@ -24,286 +24,206 @@ const App = () => {
     const navigate = useNavigate();
 
   return (
-    <div>
+    <div className="font-sans text-gray-800 bg-gray-50 overflow-x-hidden">
 
+      {/* HERO SECTION */}
       <div 
         id='Home'
-        className="relative"
+        className="relative min-h-[90vh] flex flex-col w-full"
         style={{
           backgroundImage: `url(${girl})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       >
-
-       <Navbar/>
+        <Navbar/>
 
         {/* Dark Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#07162d]/95 via-[#07162d]/75 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07162d]/95 via-[#07162d]/80 to-transparent"></div>
 
-        {/* Content */}
-        <div className="relative z-10">
-
-         
-
-          {/* HERO TEXT */}
-          <h1 className='mt-[30px] font-bold text-yellow-400 ml-[7%] text-[30px]'>
+        {/* Hero Content */}
+        <div className="relative z-10 flex-grow flex flex-col justify-center max-w-7xl mx-auto w-full px-6 lg:px-8 pb-32 pt-20">
+          
+          <h1 className='font-bold text-yellow-400 text-2xl md:text-3xl tracking-wide uppercase mb-4'>
             Welcome to Unicode University
           </h1>
 
-          <p className='mt-[40px] ml-[7%] text-[60px] text-white font-bold'>
-            Empowering<br />
-            Students for a<br />
+          <p className='text-5xl md:text-7xl text-white font-extrabold leading-tight mb-6'>
+            Empowering <br className="hidden md:block" />
+            Students for a <br className="hidden md:block" />
             <span className='text-yellow-400'>Brighter Tomorrow</span>
           </p>
 
-          <p className='text-[23px] mt-[20px] ml-[7%] text-white'>
-            we provide a nurturing environment<br />
-            that inspires excellence foster creativity<br />
-            and prepare students to become<br />
-            Future Leaders.
+          <p className='text-lg md:text-xl text-gray-200 max-w-2xl leading-relaxed mb-10'>
+            We provide a nurturing environment that inspires excellence, fosters creativity, 
+            and prepares students to become Future Leaders.
           </p>
 
-          <button className='bg-yellow-400 text-black p-[15px_40px] rounded-[8px] ml-[7%] mt-[30px] cursor-pointer text-[23px] mb-[15%]'>
+          <button className='bg-yellow-400 hover:bg-yellow-300 transition-colors duration-300 text-black font-semibold py-4 px-10 rounded-lg w-max text-lg shadow-lg'>
             Read more
           </button>
-
-          {/* STATS SECTION */}
-          <div className="absolute bottom-[-60px] left-1/2 transform -translate-x-1/2 w-[90%]">
-
-            <div className="bg-white rounded-[20px] shadow-xl grid grid-cols-1 md:grid-cols-4 gap-6 p-8">
-
-              <div className="text-center">
-                <div className="text-yellow-500 text-4xl font-bold">15+</div>
-                <p className="text-gray-800 font-semibold">Years of Excellence</p>
-                <p className="text-gray-500 text-sm">In quality education</p>
-              </div>
-
-              <div className="text-center">
-                <div className="text-blue-600 text-4xl font-bold">4500+</div>
-                <p className="text-gray-800 font-semibold">Happy Students</p>
-                <p className="text-gray-500 text-sm">Enrolled across all levels</p>
-              </div>
-
-              <div className="text-center">
-                <div className="text-green-600 text-4xl font-bold">250+</div>
-                <p className="text-gray-800 font-semibold">Qualified Lecturers</p>
-                <p className="text-gray-500 text-sm">Dedicated to excellence</p>
-              </div>
-
-              <div className="text-center">
-                <div className="text-purple-600 text-4xl font-bold">95%</div>
-                <p className="text-gray-800 font-semibold">Success Rate</p>
-                <p className="text-gray-500 text-sm">In national exams</p>
-              </div>
-
-            </div>
-
-          </div>
-
         </div>
-
       </div>
 
-
-    <div id="Leaders" className="px-4 md:px-0">
-
-  <h2 className="text-center text-[28px] md:text-[40px] text-yellow-400 mt-[7%]">
-    Heads
-  </h2>
-
-  {/* Scroll container */}
-  <div className="w-full md:w-[1320px] mt-[50px] mb-[50px] mx-auto overflow-x-auto scrollbar-hide">
-
-    {/* Flex row for cards */}
-    <div className="flex gap-[20px] md:gap-[40px] w-max px-4">
-
-      {/* Card 1 */}
-      <div className="flex-shrink-0">
-        <img src={peter} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">Chancellor</p>
+      {/* STATS SECTION */}
+      <div className="relative z-20 -mt-20 max-w-7xl mx-auto px-6 lg:px-8 mb-20">
+        <div className="bg-white rounded-2xl shadow-xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 p-10">
+          <div className="text-center">
+            <div className="text-yellow-500 text-5xl font-extrabold mb-2">15+</div>
+            <p className="text-gray-800 font-bold text-lg">Years of Excellence</p>
+            <p className="text-gray-500 text-sm mt-1">In quality education</p>
+          </div>
+          <div className="text-center">
+            <div className="text-blue-600 text-5xl font-extrabold mb-2">4500+</div>
+            <p className="text-gray-800 font-bold text-lg">Happy Students</p>
+            <p className="text-gray-500 text-sm mt-1">Enrolled across all levels</p>
+          </div>
+          <div className="text-center">
+            <div className="text-green-600 text-5xl font-extrabold mb-2">250+</div>
+            <p className="text-gray-800 font-bold text-lg">Qualified Lecturers</p>
+            <p className="text-gray-500 text-sm mt-1">Dedicated to excellence</p>
+          </div>
+          <div className="text-center">
+            <div className="text-purple-600 text-5xl font-extrabold mb-2">95%</div>
+            <p className="text-gray-800 font-bold text-lg">Success Rate</p>
+            <p className="text-gray-500 text-sm mt-1">In national exams</p>
+          </div>
+        </div>
       </div>
 
-      {/* Card 2 */}
-      <div className="flex-shrink-0">
-        <img src={bursary} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">Bursary</p>
+      {/* LEADERS SECTION */}
+      <div id="Leaders" className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
+        <h2 className="text-center text-3xl md:text-5xl font-bold text-[#07162d] mb-12">
+          University <span className="text-yellow-500">Heads</span>
+        </h2>
+
+        <div className="w-full overflow-x-auto pb-8 snap-x scrollbar-hide">
+          <div className="flex gap-6 md:gap-8 w-max px-4">
+            {[
+              { img: peter, title: "Chancellor" },
+              { img: bursary, title: "Bursary" },
+              { img: sabastine, title: "V. Chancellor" },
+              { img: judith, title: "Registrar" },
+              { img: Dera, title: "Dean" },
+              { img: Tolu, title: "Finances" },
+            ].map((leader, index) => (
+              <div key={index} className="flex-shrink-0 snap-center group cursor-pointer">
+                <div className="overflow-hidden rounded-xl border-4 border-yellow-400 shadow-md transition-transform duration-300 group-hover:-translate-y-2 group-hover:shadow-xl">
+                  <img src={leader.img} alt={leader.title} className="w-[240px] md:w-[280px] h-[320px] md:h-[360px] object-cover" />
+                </div>
+                <p className="text-center mt-4 text-lg font-semibold text-gray-800">{leader.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Card 3 */}
-      <div className="flex-shrink-0">
-        <img src={sabastine} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">V. Chancellor</p>
-      </div>
-
-      {/* Card 4 */}
-      <div className="flex-shrink-0">
-        <img src={judith} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">Registrar</p>
-      </div>
-
-      {/* Card 5 */}
-      <div className="flex-shrink-0">
-        <img src={Dera} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">Dean</p>
-      </div>
-
-      {/* Card 6 */}
-      <div className="flex-shrink-0">
-        <img src={Tolu} className="w-[220px] md:w-[300px] h-[280px] md:h-[370px] rounded-[8px] border-[4px] border-yellow-400 object-cover" />
-        <p className="text-center mt-[13px]">Finances</p>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-       <div id='About'>
-
-         <div className='flex-col md:flex-row flex gap-[6%]'>
-
-        <img src={two} className='w-[500px] h-[650px] rounded-[8px] ml-[40px] border-[3px] border-yellow-400'/>
+      {/* ABOUT SECTION */}
+      <div id='About' className="max-w-7xl mx-auto px-6 lg:px-8 py-20">
+        <div className='grid grid-cols-1 lg:grid-cols-2 gap-16 items-center'>
+          <div className="relative">
+            <div className="absolute inset-0 bg-yellow-400 rounded-2xl transform translate-x-4 translate-y-4 -z-10"></div>
+            <img src={two} alt="About Unicode" className='w-full h-auto object-cover rounded-2xl shadow-lg border-4 border-white'/>
+          </div>
             
-            <div>
+          <div className="space-y-6">
+            <h2 className='text-4xl md:text-5xl font-bold text-[#07162d]'>About Unicode</h2>
+            <p className='text-lg text-gray-600 leading-relaxed'>
+              Unicode University is a forward-thinking institution dedicated 
+              to empowering students with knowledge, innovation, and practical
+              skills for success in a rapidly evolving global world. It is where 
+              creativity meets excellence and education goes beyond the classroom.
+            </p>
+            <p className='text-lg text-gray-600 leading-relaxed'>
+              At Unicode University, we believe in nurturing not only academic
+              growth but also personal development. Our students are encouraged
+              to think critically, solve real-world problems, and become impactful
+              contributors to society.
+            </p>
+            <p className='text-lg text-gray-600 leading-relaxed'>
+              With modern facilities, experienced faculty, and a strong focus on 
+              research and innovation, Unicode University stands as a place where
+              future leaders are shaped and dreams are transformed into reality. 
+            </p>
+          </div>
+        </div>
+      </div>
 
-         <p className='text-[50px] pt-[60px]'>About Unicode</p>
-
-         <p className='pt-[40px] text-[20px]'>
-          Unicode University is a forward-thinking institution dedicated 
-          to empowering students with knowledge, innovation,  practical
-          skills for success in a rapidly evolving global world. where 
-         creativity meets excellence and education goes beyond the classroom.</p>
-
-         <p className='pt-[30px] text-[20px]'>
-          At Unicode University, we believe in nurturing not only academic
-          growth but also personal development. Our students are encouraged
-          to think critically, solve real-world problems, and become impactful
-          contributors to society.</p>
-
-          <p className='text-[20px] pt-[30px]'>
-           With modern facilities, experienced faculty, and a strong focus on 
-           research and innovation, Unicode University stands as a place where
-           future leaders are shaped and dreams are transformed into reality. 
+      {/* MISSION SECTION */}
+      <div id='Mission' className='bg-[#1b1425] py-24 px-6 lg:px-8 my-10'>
+        <div className="max-w-4xl mx-auto text-center space-y-8">
+          <h2 className='text-yellow-400 text-4xl md:text-5xl font-bold uppercase tracking-widest'>Our Mission</h2>
+          <p className='text-gray-300 text-xl md:text-2xl font-light leading-relaxed'>
+            To provide high-quality education that empowers students to become responsible,
+            innovative, and successful global citizens. To be a leading institution recognized
+            for academic excellence, character development, and student success.
           </p>
         </div>
-
-         </div>
-
-       </div>
-
-       <div id='Mission'>
-
-         <div style={{backgroundColor : "#1b1425"}} className='flex-col md:flex-row mt-[70px]'>
-        <p className='text-[#facc15] text-[40px] pt-[10%] text-center font-bold'>Our Mission</p>
-        <p className='text-[#d1d5db] text-center text-[25px] font-bold pt-[40px] pb-[10%]'>
-          To provide high-quality education that empowers students to become responsible,<br/>
-          innovative, and successful global citizens. To be a leading institution recognized
-               for academic excellence, character development, and student success.
-          </p>
-          </div>
-
-       </div>
+      </div>
        
-    <section className="bg-[#0d1b34] py-20 mt-[10%]" id='Rules'>
-  <div className="max-w-6xl mx-auto px-8">
+      {/* RULES / TERMS SECTION */}
+      <section id='Rules' className="bg-[#0d1b34] py-24">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <h2 className="text-center text-yellow-400 text-4xl md:text-5xl font-bold mb-16">
+            Terms & Privacy
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20">
+            <div className="bg-white/5 p-8 rounded-2xl backdrop-blur-sm border border-white/10">
+              <h3 className="text-yellow-400 text-2xl font-bold mb-4">
+                Terms & Conditions
+              </h3>
+              <p className="text-gray-300 text-lg leading-relaxed">
+                By using this website, you agree to follow all rules and guidelines.
+                All content is for educational purposes. Users must not misuse,
+                damage, or interfere with the website. We reserve the right to
+                update content at any time.
+              </p>
+            </div>
+            <div className="bg-white/5 p-8 rounded-2xl backdrop-blur-sm border border-white/10">
+              <h3 className="text-yellow-400 text-2xl font-bold mb-4">
+                Privacy Policy
+              </h3>
+              <p className="text-gray-300 text-lg leading-relaxed">
+                We respect your privacy. Any information collected is used only
+                for communication and school purposes. We do not sell or share
+                your data with third parties except when required by law.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-    <h2 className="text-center text-yellow-400 text-5xl font-bold mb-16">
-      Terms & Privacy
-    </h2>
-
-    <div className="flex flex-col md:flex-row gap-12">
-
-      {/* Terms */}
-      <div className="flex-1">
-        <h3 className="text-yellow-400 text-3xl font-bold mb-4">
-          Terms & Conditions
-        </h3>
-
-        <p className="text-gray-300 text-lg leading-8">
-          By using this website, you agree to follow all rules and guidelines.
-          All content is for educational purposes. Users must not misuse,
-          damage, or interfere with the website. We reserve the right to
-          update content at any time.
-        </p>
-      </div>
-
-      {/* Privacy */}
-      <div className="flex-1">
-        <h3 className="text-yellow-400 text-3xl font-bold mb-4">
-          Privacy Policy
-        </h3>
-
-        <p className="text-gray-300 text-lg leading-8">
-          We respect your privacy. Any information collected is used only
-          for communication and school purposes. We do not sell or share
-          your data with third parties except when required by law.
-        </p>
-      </div>
-
-    </div>
-
-  </div>
-</section>
-
-     <div style={{backgroundColor: "#fdf6ec"}} className='flex-col md:flex-row mt-[10%]' id='Courses'>
-      
-       <p className='pt-[40px] text-[30px] text-[#facc15] font-bold pt-[50px]'>Examples of the type of Courses we Offer</p>
-
-       <div className='flex-col md:flex-row flex gap-[30px] mt-[6%] items-center justify-center mb-[10%] pb-[13%]'>
-
-      <div>
-        <img src={Economics}  className='w-[280px] h-[300px]'/>
-
-              <div className='bg-white p-5 shadow-[0_4px_20px_rgba(255,255,255,0.18)]'>
-        <p className='pt-[20px] text-[20px] '>Economics</p>
-        <p className='pt-[20px] text-[15px] pb-[30px]'>
-          Study how money, resources,shape<br/>
-          societies and economic growth.</p>
+      {/* COURSES SECTION */}
+      <div id='Courses' className='bg-[#fdf6ec] py-24'>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          
+          <div className="text-center mb-16">
+            <h2 className='text-3xl md:text-5xl text-[#07162d] font-bold mb-4'>Academic Programs</h2>
+            <p className='text-xl text-yellow-600 font-medium'>Examples of the type of Courses we Offer</p>
           </div>
 
-      </div>
-
-       <div>
-        <img src={cybersecurity}  className='w-[340px] h-[300px]'/>
-
-           <div  className='bg-white p-5 shadow-[0_4px_20px_rgba(255,255,255,0.18)]'>
-        <p className='pt-[20px] text-[20px] pl-[30px]'>Cyber Security</p>
-        <p className='pt-[20px] text-[15px] pl-[30px] pb-[30px]'>
-         Study how to secure systems and protect<br/>
-         data from cyber attacks and threats.</p>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8'>
+            
+            {/* Course Cards */}
+            {[ 
+                { img: Economics, title: "Economics", desc: "Study how money and resources shape societies and drive economic growth." },
+                { img: cybersecurity, title: "Cyber Security", desc: "Study how to secure systems and protect data from cyber attacks and threats." },
+                { img: Nursing, title: "Nursing", desc: "Study how to care for patients, support health, and promote overall wellbeing." },
+                { img: DataAnalysist, title: "Data Analyst", desc: "Learn how to collect, analyze, and interpret data to help make better business decisions." }
+            ].map((course, i) => (
+              <div key={i} className='bg-white rounded-xl overflow-hidden shadow-lg hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 flex flex-col'>
+                <img src={course.img} alt={course.title} className='w-full h-56 object-cover'/>
+                <div className='p-6 flex-grow flex flex-col'>
+                  <h3 className='text-xl font-bold text-[#07162d] mb-3'>{course.title}</h3>
+                  <p className='text-gray-600 text-sm leading-relaxed'>{course.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
-
+        </div>
       </div>
 
-         <div>
-        <img src={Nursing}  className='w-[290px] h-[300px]'/>
-
-           <div className='bg-white p-5 shadow-[0_4px_20px_rgba(255,255,255,0.18)]'>
-        <p className='pt-[20px] text-[20px] pl-[30px]'>Nursing</p>
-        <p className='pt-[20px] text-[15px] pl-[30px] pb-[30px]'>
-         Study how to care for patients and<br/>
-         support health and wellbeing.</p>
-         </div>
-      </div>
-
-         <div>
-        <img src={DataAnalysist}  className='w-[390px] h-[300px]'/>
-
-           <div className='bg-white p-5 shadow-[0_4px_20px_rgba(255,255,255,0.18)]'>
-        <p className='pt-[20px] text-[20px] pl-[30px]'>Data Analysist</p>
-        <p className='pt-[20px] text-[15px] pl-[30px] pb-[30px]'>
-        Learn how to collect, analyze, and interpret data<br/>
-         to help make better business decisions.</p>   
-         </div> 
-
-      </div>
-
-        
-       </div>
-
-     </div>
-
-     <Footer/>
+      <Footer/>
 
     </div>
   )
