@@ -82,7 +82,7 @@ export default function Dashboard() {
       <div className="flex-1 p-5 md:p-10 overflow-y-auto w-full mt-16 md:mt-0">
         <div className="bg-gradient-to-r from-[#07162d] to-slate-800 p-8 rounded-2xl shadow-md mb-8 text-white relative overflow-hidden">
           <h1 className="text-2xl md:text-4xl font-bold mb-2">Hi, {user.FullName}</h1>
-          <p className="text-slate-300 text-lg">Welcome to your student dashboard</p>
+          <p className="text-slate-300 text-lg">Welcome student dashboard</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
