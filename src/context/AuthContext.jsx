@@ -15,14 +15,11 @@ export function AuthProvider({ children }) {
       email,
       password,
       options: {
-        data: {
-          name,
-        },
+        data: { name },
       },
     });
 
     if (error) throw error;
-
     return data;
   };
 
@@ -45,40 +42,88 @@ export function AuthProvider({ children }) {
     });
 
     if (error) throw error;
-
     return data;
   };
 
   // =========================
-  // LOGOUT
+  // LOGOUT (clears Supabase + localStorage)
   // =========================
-  const logout = () => {
-    return supabase.auth.signOut();
+  const logout = async () => {
+    // Clear local fallback user (offline admin)
+    localStorage.removeItem("user");
+    setCurrentUser(null);
+
+    // Try to sign out of Supabase too (ignore errors if offline)
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn("⚠️ Supabase signOut failed (offline?):", err.message);
+    }
   };
 
   // =========================
-  // AUTH LISTENER (FIXED - NO auth)
+  // AUTH LISTENER (with offline fallback + timeout safety)
   // =========================
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let isMounted = true;
 
-      setCurrentUser(user || null);
-      setLoading(false);
+    const getUser = async () => {
+      try {
+        // Race Supabase against a 8s timeout so we never hang forever
+        const userPromise = supabase.auth.getUser();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Auth timeout")), 8000)
+        );
+
+        const {
+          data: { user },
+        } = await Promise.race([userPromise, timeoutPromise]);
+
+        if (!isMounted) return;
+
+        if (user) {
+          // ✅ Supabase session exists
+          setCurrentUser(user);
+        } else {
+          // No Supabase user → check localStorage fallback (offline admin)
+          const stored = localStorage.getItem("user");
+          setCurrentUser(stored ? JSON.parse(stored) : null);
+        }
+      } catch (err) {
+        // ❌ Supabase unreachable / timed out → use localStorage fallback
+        console.warn(
+          "⚠️ Supabase unreachable in AuthContext, using localStorage:",
+          err.message
+        );
+        if (!isMounted) return;
+        const stored = localStorage.getItem("user");
+        setCurrentUser(stored ? JSON.parse(stored) : null);
+      } finally {
+        // ✅ CRITICAL: always stop loading, even on error/timeout
+        if (isMounted) setLoading(false);
+      }
     };
 
     getUser();
 
+    // Listen for Supabase auth changes (login/logout when online)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user || null);
+      if (!isMounted) return;
+
+      if (session?.user) {
+        setCurrentUser(session.user);
+      } else {
+        // Supabase logged out → fall back to localStorage if present
+        const stored = localStorage.getItem("user");
+        setCurrentUser(stored ? JSON.parse(stored) : null);
+      }
       setLoading(false);
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
