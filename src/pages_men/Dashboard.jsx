@@ -101,21 +101,25 @@ export default function Dashboard() {
           .from("registered_courses").select("*").eq("StudentEmail", user.Email);
         if (!registeredRes.error) setRegistered(registeredRes.data || []);
 
+        // ✅ FIXED: email column is lowercase
         const resultsRes = await supabase
-          .from("results").select("*").eq("Email", user.Email);
+          .from("results").select("*").eq("email", user.Email);
         if (!resultsRes.error) setResults(resultsRes.data || []);
 
+        // ✅ FIXED: email column is lowercase
         const performanceRes = await supabase
-          .from("performance").select("*").eq("Email", user.Email);
+          .from("performance").select("*").eq("email", user.Email);
         if (!performanceRes.error) setPerformanceData(performanceRes.data || []);
 
+        // ✅ No email filter — timetable is for everyone
         const timetableRes = await supabase
-          .from("timetable").select("*").eq("Email", user.Email);
+          .from("timetable").select("*");
         if (!timetableRes.error) setTimetableRows(timetableRes.data || []);
 
         const announcementsRes = await supabase
           .from("announcements").select("*").order("created_at", { ascending: false });
         if (!announcementsRes.error) setAnnouncements(announcementsRes.data || []);
+
       } catch (err) {
         toast.error("Failed to load dashboard data");
       } finally {
@@ -127,20 +131,24 @@ export default function Dashboard() {
 
   // ── DERIVED DATA ──
   const totalUnits = registered.reduce((s, c) => s + (Number(c.Units) || Number(c.units) || 0), 0);
+
+  // ✅ FIXED: lowercase cgpa to match performance table columns
   const currentCGPA = performanceData.length
-    ? Number(performanceData[performanceData.length - 1]?.CGPA ||
-      performanceData[performanceData.length - 1]?.cgpa) || 0 : 0;
+    ? Number(performanceData[performanceData.length - 1]?.cgpa) || 0 : 0;
+
   const completedCount = results.filter(
-    (r) => (r.Grade || r.grade || "").charAt(0).toUpperCase() !== "F"
+    (r) => (r.grade || "").charAt(0).toUpperCase() !== "F"
   ).length;
 
+  // ✅ FIXED: lowercase semester, cgpa, gpa to match performance table columns
   const cgpaTrend = performanceData.map((p) => ({
-    semester: p.Semester || p.semester,
-    cgpa: Number(p.CGPA || p.cgpa) || 0,
+    semester: p.semester,
+    cgpa: Number(p.cgpa) || 0,
   }));
+
   const semesterChartData = performanceData.map((p) => ({
-    semester: p.Semester || p.semester,
-    gpa: Number(p.GPA || p.gpa) || 0,
+    semester: p.semester,
+    gpa: Number(p.gpa) || 0,
   }));
 
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -148,7 +156,8 @@ export default function Dashboard() {
     const grouped = {};
     days.forEach((d) => (grouped[d] = []));
     timetableRows.forEach((row) => {
-      const day = row.Day || row.day;
+      // ✅ FIXED: admin saves as "day" (lowercase)
+      const day = row.day || row.Day;
       if (grouped[day]) grouped[day].push(row);
     });
     return grouped;
@@ -181,7 +190,7 @@ export default function Dashboard() {
       StudentEmail: user.Email,
       CourseCode: courseCode,
       CourseTitle: course.CourseTitle || course.title || course.Title,
-      Units: course.Units || course.units,
+      Units: course.Units || course.units || course.credits,
       Semester: course.Semester || course.semester,
       Lecturer: course.Lecturer || course.lecturer,
       Status: "Registered",
@@ -210,9 +219,10 @@ export default function Dashboard() {
 
   const filteredCourses = useMemo(() => {
     return allCourses.filter((c) => {
-      const code = c.CourseCode || c.code || c.Code || "";
-      const title = c.CourseTitle || c.title || c.Title || "";
-      const semester = c.Semester || c.semester || "";
+      // ✅ FIXED: admin saves as "code" and "title" (lowercase)
+      const code = c.code || c.CourseCode || c.Code || "";
+      const title = c.title || c.CourseTitle || c.Title || "";
+      const semester = c.semester || c.Semester || "";
       const matchSem = semesterFilter === "all" || semester === semesterFilter;
       const matchQuery =
         code.toLowerCase().includes(courseQuery.toLowerCase()) ||
@@ -274,6 +284,9 @@ export default function Dashboard() {
       Scholarship: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
       School: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400",
       Department: "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400",
+      urgent: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
+      important: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+      normal: "bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400",
     };
     return map[type] || "bg-slate-100 text-slate-600";
   };
@@ -381,7 +394,6 @@ export default function Dashboard() {
     { icon: Wallet, label: "Outstanding (₦)", value: stats.fees, gradient: "from-red-500 to-rose-600" },
   ];
 
-  // ── ACADEMIC INFO ITEMS ──
   const academicItems = [
     { icon: Hash, label: "Matric Number", value: user.MatricNumber, color: "blue" },
     { icon: Building2, label: "Department", value: user.Department, color: "indigo" },
@@ -416,13 +428,10 @@ export default function Dashboard() {
         `}
         style={{ background: "linear-gradient(to bottom, #040e1d, #07162d, #0c2340)" }}
       >
-        {/* Orbs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-[-5%] right-[-20%] w-48 h-48 bg-blue-500 rounded-full mix-blend-screen filter blur-[80px] opacity-[0.08]" />
           <div className="absolute bottom-[20%] left-[-10%] w-56 h-56 bg-indigo-500 rounded-full mix-blend-screen filter blur-[90px] opacity-[0.06]" />
         </div>
-
-        {/* Grid overlay */}
         <div
           className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
@@ -431,8 +440,6 @@ export default function Dashboard() {
             backgroundSize: "40px 40px",
           }}
         />
-
-        {/* Logo */}
         <div className="relative z-10 p-6 flex items-center gap-3 border-b border-white/[0.06]">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <GraduationCap className="text-white" size={20} />
@@ -443,11 +450,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="relative z-10 flex-1 overflow-y-auto px-3 py-4">
-          <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-semibold px-4 mb-3">
-            Main Menu
-          </p>
+          <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-semibold px-4 mb-3">Main Menu</p>
           <ul className="flex flex-col gap-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -478,7 +482,6 @@ export default function Dashboard() {
           </ul>
         </nav>
 
-        {/* Student mini card */}
         <div className="relative z-10 mx-3 mb-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-md">
@@ -491,7 +494,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Logout */}
         <div className="relative z-10 p-3 border-t border-white/[0.06]">
           <button
             onClick={() => setShowLogoutModal(true)}
@@ -564,21 +566,17 @@ export default function Dashboard() {
           {/* ═══ DASHBOARD HOME ═══ */}
           {active === "dashboard" && (
             <>
-              {/* Hero Banner */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="relative rounded-3xl overflow-hidden mb-8 shadow-2xl"
                 style={{ background: "linear-gradient(135deg, #040e1d 0%, #07162d 50%, #0c2340 100%)" }}
               >
-                {/* Orbs */}
                 <div className="absolute inset-0 pointer-events-none">
                   <div className="absolute -right-10 -top-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.12]" />
                   <div className="absolute -left-10 -bottom-10 w-64 h-64 bg-indigo-500 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.10]" />
                   <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-cyan-400 rounded-full mix-blend-screen filter blur-[80px] opacity-[0.05]" />
                 </div>
-
-                {/* Grid overlay */}
                 <div
                   className="absolute inset-0 opacity-[0.04] pointer-events-none"
                   style={{
@@ -587,18 +585,14 @@ export default function Dashboard() {
                     backgroundSize: "50px 50px",
                   }}
                 />
-
-                {/* Accent line */}
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: 80 }}
                   transition={{ delay: 0.5, duration: 0.8 }}
                   className="absolute top-0 left-8 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
                 />
-
                 <div className="relative z-10 p-6 md:p-10">
                   <div className="flex flex-col md:flex-row md:items-center gap-6">
-                    {/* Avatar */}
                     <div className="relative flex-shrink-0">
                       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-3xl font-bold text-white shadow-2xl shadow-blue-500/30">
                         {user.FullName?.charAt(0)}
@@ -607,8 +601,6 @@ export default function Dashboard() {
                         <CheckCircle size={12} className="text-white" />
                       </div>
                     </div>
-
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap mb-1">
                         <h1 className="text-2xl md:text-3xl font-bold text-white">{user.FullName}</h1>
@@ -617,11 +609,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <p className="text-slate-400 text-sm mb-1">{user.Email}</p>
-
-                      {/* Accent line */}
                       <div className="w-12 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mb-5" />
-
-                      {/* Academic info pills */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {academicItems.map((item) => {
                           const Icon = item.icon;
@@ -635,31 +623,22 @@ export default function Dashboard() {
                             >
                               <Icon size={13} className={c.icon} />
                               <div className="min-w-0">
-                                <p className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">
-                                  {item.label}
-                                </p>
-                                <p className="text-xs font-bold text-white truncate">
-                                  {item.value || "N/A"}
-                                </p>
+                                <p className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">{item.label}</p>
+                                <p className="text-xs font-bold text-white truncate">{item.value || "N/A"}</p>
                               </div>
                             </motion.div>
                           );
                         })}
                       </div>
-
-                      {/* ✅ FIXED: Globe2 → Globe */}
                       <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4">
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Globe size={11} className="text-slate-500" />
-                          {user.Nationality || "N/A"}
+                          <Globe size={11} className="text-slate-500" />{user.Nationality || "N/A"}
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Calendar size={11} className="text-slate-500" />
-                          {user.DateofBirth || "N/A"}
+                          <Calendar size={11} className="text-slate-500" />{user.DateofBirth || "N/A"}
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Shield size={11} className="text-slate-500" />
-                          256-bit SSL Secured
+                          <Shield size={11} className="text-slate-500" />256-bit SSL Secured
                         </span>
                       </div>
                     </div>
@@ -691,9 +670,7 @@ export default function Dashboard() {
                           <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white mb-4 shadow-md`}>
                             <Icon size={20} />
                           </div>
-                          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
-                            {c.label}
-                          </p>
+                          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{c.label}</p>
                           <p className="text-2xl font-bold text-slate-800 dark:text-white">
                             <Counter value={c.value} decimals={c.decimals || 0} suffix={c.suffix || ""} />
                           </p>
@@ -722,9 +699,7 @@ export default function Dashboard() {
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform`}>
                           <Icon size={22} />
                         </div>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 text-center leading-tight">
-                          {s.label}
-                        </span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 text-center leading-tight">{s.label}</span>
                       </motion.button>
                     );
                   })}
@@ -793,7 +768,6 @@ export default function Dashboard() {
                   Total Units: {totalUnits}
                 </span>
               </div>
-
               <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700/50 px-3 py-2.5 rounded-xl flex-1 border border-slate-200 dark:border-slate-600">
                   <Search size={15} className="text-slate-400" />
@@ -814,7 +788,6 @@ export default function Dashboard() {
                   <option value="Second">Second Semester</option>
                 </select>
               </div>
-
               {dataLoading ? (
                 <div className="space-y-3">
                   {[...Array(4)].map((_, i) => (
@@ -826,13 +799,13 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                   {filteredCourses.map((course, i) => {
-                    const courseCode = course.CourseCode || course.code || course.Code || "";
-                    const courseTitle = course.CourseTitle || course.title || course.Title || "";
-                    const courseUnits = course.Units || course.units || 0;
-                    const courseSemester = course.Semester || course.semester || "";
+                    // ✅ FIXED: admin saves as lowercase code, title, credits, semester
+                    const courseCode = course.code || course.CourseCode || course.Code || "";
+                    const courseTitle = course.title || course.CourseTitle || course.Title || "";
+                    const courseUnits = course.credits || course.Units || course.units || 0;
+                    const courseSemester = course.semester || course.Semester || "";
                     const courseLecturer = course.Lecturer || course.lecturer || "";
                     const reg = isRegistered(courseCode);
-
                     return (
                       <motion.div
                         key={courseCode || i}
@@ -910,21 +883,14 @@ export default function Dashboard() {
                       <p className="text-sm text-slate-400">{registered.length} courses registered • {totalUnits} total units</p>
                     </div>
                     <div className="flex gap-2">
-                      <button
-                        onClick={exportPDF}
-                        className="flex items-center gap-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white px-3 py-2 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600"
-                      >
+                      <button onClick={exportPDF} className="flex items-center gap-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white px-3 py-2 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600">
                         <FileDown size={14} /> PDF
                       </button>
-                      <button
-                        onClick={() => window.print()}
-                        className="flex items-center gap-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white px-3 py-2 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600"
-                      >
+                      <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white px-3 py-2 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600">
                         <Printer size={14} /> Print
                       </button>
                     </div>
                   </div>
-
                   <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700/50 px-3 py-2.5 rounded-xl mb-5 border border-slate-200 dark:border-slate-600">
                     <Search size={14} className="text-slate-400" />
                     <input
@@ -934,7 +900,6 @@ export default function Dashboard() {
                       className="bg-transparent outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                     />
                   </div>
-
                   <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
                     <table className="w-full text-sm">
                       <thead>
@@ -966,7 +931,6 @@ export default function Dashboard() {
                       </tbody>
                     </table>
                   </div>
-
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 mt-5">
                       {Array.from({ length: totalPages }).map((_, i) => (
@@ -1066,14 +1030,18 @@ export default function Dashboard() {
                       {results.map((r, i) => (
                         <tr key={r.id || i} className="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
                           <td className="py-3.5 px-4">
-                            <p className="font-bold text-slate-800 dark:text-white">{r.CourseCode || r.code}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{r.CourseTitle || r.title}</p>
+                            {/* ✅ FIXED: admin saves as course_code and course_title */}
+                            <p className="font-bold text-slate-800 dark:text-white">{r.course_code || r.CourseCode || r.code}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{r.course_title || r.CourseTitle || r.title}</p>
                           </td>
-                          <td className="py-3.5 px-4">{r.Units || r.units}</td>
-                          <td className="py-3.5 px-4 font-semibold">{r.Score || r.score}</td>
+                          {/* ✅ FIXED: admin saves as units (lowercase) */}
+                          <td className="py-3.5 px-4">{r.units || r.Units}</td>
+                          {/* ✅ FIXED: admin saves as score (lowercase) */}
+                          <td className="py-3.5 px-4 font-semibold">{r.score ?? r.Score}</td>
                           <td className="py-3.5 px-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${gradeColor(r.Grade || r.grade)}`}>
-                              {r.Grade || r.grade}
+                            {/* ✅ FIXED: admin saves as grade (lowercase) */}
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${gradeColor(r.grade || r.Grade)}`}>
+                              {r.grade || r.Grade}
                             </span>
                           </td>
                         </tr>
@@ -1117,15 +1085,22 @@ export default function Dashboard() {
                             className="p-3 rounded-xl border border-indigo-100 dark:border-slate-700"
                             style={{ background: "linear-gradient(135deg, #f0f4ff, #f5f0ff)" }}
                           >
-                            <p className="font-bold text-sm text-slate-800">{cls.Course || cls.course}</p>
+                            {/* ✅ FIXED: admin saves as course_title (lowercase) */}
+                            <p className="font-bold text-sm text-slate-800">
+                              {cls.course_title || cls.Course || cls.course}
+                            </p>
+                            {/* ✅ FIXED: admin saves as start_time */}
                             <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                              <Clock size={10} />{cls.Time || cls.time}
+                              <Clock size={10} />
+                              {cls.start_time || cls.Time || cls.time}
+                              {cls.end_time ? ` - ${cls.end_time}` : ""}
+                            </p>
+                            {/* ✅ FIXED: admin saves as venue */}
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <MapPin size={10} />{cls.venue || cls.Room || cls.room}
                             </p>
                             <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <MapPin size={10} />{cls.Room || cls.room}
-                            </p>
-                            <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <User size={10} />{cls.Lecturer || cls.lecturer}
+                              <User size={10} />{cls.lecturer || cls.Lecturer}
                             </p>
                           </motion.div>
                         ))}
@@ -1174,15 +1149,18 @@ export default function Dashboard() {
                       className="p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${announcementColor(a.Type || a.type)}`}>
-                          {a.Type || a.type}
+                        {/* ✅ FIXED: admin saves priority not Type */}
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${announcementColor(a.priority || a.type || a.Type)}`}>
+                          {a.priority || a.type || a.Type}
                         </span>
                         <span className="text-xs text-slate-400">
                           {a.created_at ? new Date(a.created_at).toLocaleDateString() : ""}
                         </span>
                       </div>
-                      <p className="font-bold text-sm text-slate-800 dark:text-white">{a.Title || a.title}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{a.Body || a.body}</p>
+                      {/* ✅ FIXED: admin saves as title (lowercase) */}
+                      <p className="font-bold text-sm text-slate-800 dark:text-white">{a.title || a.Title}</p>
+                      {/* ✅ FIXED: admin saves as content not Body */}
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{a.content || a.Body || a.body}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -1197,7 +1175,6 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              {/* Profile hero */}
               <div
                 className="relative rounded-3xl overflow-hidden p-8 shadow-xl"
                 style={{ background: "linear-gradient(135deg, #040e1d 0%, #07162d 60%, #0c2340 100%)" }}
@@ -1236,7 +1213,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Academic Info Card */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
                 <SectionHeader icon={GraduationCap} label="Academic Information" color="indigo" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1270,7 +1246,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Personal Info Card */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
                 <SectionHeader icon={User} label="Personal Information" color="blue" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -1346,14 +1321,15 @@ export default function Dashboard() {
               </div>
               <div className="p-6">
                 <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-4">
-                  <p className="font-bold text-slate-800 dark:text-white">{confirmCourse.CourseCode || confirmCourse.code}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">{confirmCourse.CourseTitle || confirmCourse.title}</p>
+                  {/* ✅ FIXED: admin saves as code and title */}
+                  <p className="font-bold text-slate-800 dark:text-white">{confirmCourse.code || confirmCourse.CourseCode}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">{confirmCourse.title || confirmCourse.CourseTitle}</p>
                   <div className="flex gap-3 mt-2">
                     <span className="text-xs bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg font-medium">
-                      {confirmCourse.Units || confirmCourse.units} Units
+                      {confirmCourse.credits || confirmCourse.Units || confirmCourse.units} Units
                     </span>
                     <span className="text-xs bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg font-medium">
-                      {confirmCourse.Semester || confirmCourse.semester} Semester
+                      {confirmCourse.semester || confirmCourse.Semester} Semester
                     </span>
                   </div>
                 </div>
