@@ -1,12 +1,12 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Admindashboard from "./pages_men/Admindashboard.jsx";
-import Dashboard from "./pages_men/Dashboard.jsx";
-import Details from "./pages_men/Details.jsx";
-import Homepage from "./pages_men/Homepage.jsx";
-import Loginpage from "./pages_men/Loginpage.jsx";
-import Signuppage from "./pages_men/Signuppage.jsx";
-import Students from "./pages_men/Students.jsx";
+import Admindashboard from "./pages_girl/Admindashboard.jsx";
+import Dashboard from "./pages_girl/Dashboard.jsx";
+import Details from "./pages_girl/Details.jsx";
+import Homepage from "./pages_girl/Homepage.jsx";
+import Loginpage from "./pages_girl/Loginpage.jsx";
+import Signuppage from "./pages_girl/Signuppage.jsx";
+import Students from "./pages_girl/Students.jsx";
 
 import ProtectedRoute from "./component/ProtectedRoute.jsx";
 
