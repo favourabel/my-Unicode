@@ -1,17 +1,50 @@
-import { useNavigate } from "react-router-dom";
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "../supabaseClient";
+// ============================================================
+// FILE: Admindashboard.jsx
+// DESCRIPTION: Unicode University — Admin Management Portal
+// ACCESS: Restricted to admin email only
+// ============================================================
 
+import { useNavigate }               from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
+import { supabase }                  from "../supabaseClient";
+
+
+
+
+/* ============================================================
+   SECTION 1 — CONSTANTS & CONFIG
+   ============================================================ */
+
+// Only this email has admin access
 const ADMIN_EMAIL = "favourabel150@gmail.com";
 
-// ─── SVG ICONS ────────────────────────────────────────────────────────────────
+// Days used in the timetable section
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Reusable Tailwind class for all form inputs
+const inputCls = `
+  w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm
+  text-slate-800 placeholder-slate-400 bg-slate-50/50
+  focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400
+  transition-all
+`;
+
+
+
+
+/* ============================================================
+   SECTION 2 — SVG ICONS
+   All icons are stored in one object for easy reuse
+   ============================================================ */
 const Icon = {
+
   dashboard: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
       <polyline points="9 22 9 12 15 12 15 22" />
     </svg>
   ),
+
   students: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -19,34 +52,39 @@ const Icon = {
       <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   ),
+
   courses: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      <line x1="8" y1="7" x2="16" y2="7" />
+      <line x1="8" y1="7"  x2="16" y2="7"  />
       <line x1="8" y1="11" x2="16" y2="11" />
       <line x1="8" y1="15" x2="12" y2="15" />
     </svg>
   ),
+
   results: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
     </svg>
   ),
+
   bell: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   ),
+
   calendar: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="16" y1="2"  x2="16" y2="6"  />
+      <line x1="8"  y1="2"  x2="8"  y2="6"  />
+      <line x1="3"  y1="10" x2="21" y2="10" />
     </svg>
   ),
+
   logout: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -54,18 +92,21 @@ const Icon = {
       <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   ),
+
   plus: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
+      <line x1="12" y1="5"  x2="12" y2="19" />
+      <line x1="5"  y1="12" x2="19" y2="12" />
     </svg>
   ),
+
   edit: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
     </svg>
   ),
+
   trash: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <polyline points="3 6 5 6 21 6" />
@@ -74,50 +115,58 @@ const Icon = {
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
   ),
+
   close: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6"  x2="6"  y2="18" />
+      <line x1="6"  y1="6"  x2="18" y2="18" />
     </svg>
   ),
+
   menu: (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
+      <line x1="3"  y1="6"  x2="21" y2="6"  />
+      <line x1="3"  y1="12" x2="21" y2="12" />
+      <line x1="3"  y1="18" x2="21" y2="18" />
     </svg>
   ),
+
   school: (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
       <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3" />
     </svg>
   ),
+
   warning: (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="9"  x2="12"    y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   ),
+
   check: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   ),
+
   error: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" />
-      <line x1="15" y1="9" x2="9" y2="15" />
-      <line x1="9" y1="9" x2="15" y2="15" />
+      <line x1="15" y1="9"  x2="9"  y2="15" />
+      <line x1="9"  y1="9"  x2="15" y2="15" />
     </svg>
   ),
+
   info: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="16" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12.01" y2="8" />
+      <line x1="12" y1="16" x2="12"    y2="12" />
+      <line x1="12" y1="8"  x2="12.01" y2="8"  />
     </svg>
   ),
+
   eye: (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -126,26 +175,44 @@ const Icon = {
   ),
 };
 
-// ─── TOAST SYSTEM ─────────────────────────────────────────────────────────────
+
+
+
+/* ============================================================
+   SECTION 3 — SMALL REUSABLE UI COMPONENTS
+   These building blocks are used all over the dashboard
+   ============================================================ */
+
+// ── Toast Notification Container ─────────────────────────────
+// Shows success / error / info messages in the top-right corner
 function ToastContainer({ toasts, onRemove }) {
   return (
     <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl text-white text-sm font-medium min-w-[280px] max-w-sm
+          className={`
+            pointer-events-auto flex items-center gap-3 px-4 py-3
+            rounded-2xl shadow-2xl text-white text-sm font-medium
+            min-w-[280px] max-w-sm
             ${t.type === "success" ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : ""}
-            ${t.type === "error" ? "bg-gradient-to-r from-red-500 to-red-600" : ""}
-            ${t.type === "info" ? "bg-gradient-to-r from-blue-500 to-blue-600" : ""}
+            ${t.type === "error"   ? "bg-gradient-to-r from-red-500 to-red-600"         : ""}
+            ${t.type === "info"    ? "bg-gradient-to-r from-blue-500 to-blue-600"        : ""}
           `}
         >
+          {/* Icon changes based on toast type */}
           <span className="flex-shrink-0">
             {t.type === "success" && Icon.check}
-            {t.type === "error" && Icon.error}
-            {t.type === "info" && Icon.info}
+            {t.type === "error"   && Icon.error}
+            {t.type === "info"    && Icon.info}
           </span>
+
           <span className="flex-1">{t.message}</span>
-          <button onClick={() => onRemove(t.id)} className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+
+          <button
+            onClick={() => onRemove(t.id)}
+            className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+          >
             {Icon.close}
           </button>
         </div>
@@ -154,43 +221,75 @@ function ToastContainer({ toasts, onRemove }) {
   );
 }
 
-// ─── MODAL WRAPPER ────────────────────────────────────────────────────────────
+
+// ── Modal Wrapper ─────────────────────────────────────────────
+// Reusable popup wrapper used for all forms (course, result, etc.)
 function Modal({ title, onClose, children, size = "md" }) {
   const sizes = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Dark blurred backdrop — clicking it closes the modal */}
+      <div
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal card */}
       <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${sizes[size]} max-h-[92vh] overflow-y-auto`}>
+
+        {/* Sticky header */}
         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between rounded-t-3xl z-10">
           <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all"
+          >
             {Icon.close}
           </button>
         </div>
+
+        {/* Content */}
         <div className="p-6">{children}</div>
       </div>
     </div>
   );
 }
 
-// ─── CONFIRM DIALOG ───────────────────────────────────────────────────────────
+
+// ── Confirm Dialog ────────────────────────────────────────────
+// Used before any destructive action (delete / logout)
 function ConfirmDialog({ title, message, onConfirm, onCancel, danger = true }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCancel} />
+
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
+
+        {/* Warning icon */}
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${danger ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>
           {Icon.warning}
         </div>
+
         <h3 className="text-lg font-bold text-slate-800 text-center mb-2">{title}</h3>
         <p className="text-slate-500 text-sm text-center mb-6 leading-relaxed">{message}</p>
+
+        {/* Action buttons */}
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors"
+          >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 py-3 rounded-2xl text-white font-semibold transition-all hover:shadow-lg ${danger ? "bg-gradient-to-r from-red-500 to-red-600" : "bg-gradient-to-r from-blue-500 to-blue-600"}`}
+            className={`flex-1 py-3 rounded-2xl text-white font-semibold transition-all hover:shadow-lg ${
+              danger
+                ? "bg-gradient-to-r from-red-500 to-red-600"
+                : "bg-gradient-to-r from-blue-500 to-blue-600"
+            }`}
           >
             Confirm
           </button>
@@ -200,31 +299,40 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, danger = true }) {
   );
 }
 
-// ─── FORM FIELD ───────────────────────────────────────────────────────────────
+
+// ── Form Field Wrapper ────────────────────────────────────────
+// Adds a styled label above any form input
 function Field({ label, required, children }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-        {label}{required && <span className="text-red-500 ml-1">*</span>}
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
       </label>
       {children}
     </div>
   );
 }
 
-const inputCls = "w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all bg-slate-50/50";
 
-// ─── STAT CARD ────────────────────────────────────────────────────────────────
+// ── Stat Card ─────────────────────────────────────────────────
+// Colorful gradient card showing a single dashboard stat
 function StatCard({ label, value, icon, gradient, sub }) {
   return (
     <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-lg ${gradient}`}>
+
+      {/* Decorative background circles */}
       <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full" />
       <div className="absolute -bottom-6 -right-2 w-16 h-16 bg-white/10 rounded-full" />
+
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium opacity-90">{label}</span>
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">{icon}</div>
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            {icon}
+          </div>
         </div>
+
         <div className="text-4xl font-black tracking-tight">{value}</div>
         {sub && <p className="text-xs opacity-75 mt-1">{sub}</p>}
       </div>
@@ -232,22 +340,36 @@ function StatCard({ label, value, icon, gradient, sub }) {
   );
 }
 
-// ─── BADGE ────────────────────────────────────────────────────────────────────
+
+// ── Badge ─────────────────────────────────────────────────────
+// Small colored label used for grades, status, priority etc.
 function Badge({ children, color = "slate" }) {
   const colors = {
-    blue: "bg-blue-100 text-blue-700", green: "bg-emerald-100 text-emerald-700",
-    amber: "bg-amber-100 text-amber-700", red: "bg-red-100 text-red-700",
-    violet: "bg-violet-100 text-violet-700", slate: "bg-slate-100 text-slate-600",
-    cyan: "bg-cyan-100 text-cyan-700",
+    blue:   "bg-blue-100 text-blue-700",
+    green:  "bg-emerald-100 text-emerald-700",
+    amber:  "bg-amber-100 text-amber-700",
+    red:    "bg-red-100 text-red-700",
+    violet: "bg-violet-100 text-violet-700",
+    slate:  "bg-slate-100 text-slate-600",
+    cyan:   "bg-cyan-100 text-cyan-700",
   };
-  return <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-lg ${colors[color]}`}>{children}</span>;
+
+  return (
+    <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-lg ${colors[color]}`}>
+      {children}
+    </span>
+  );
 }
 
-// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+
+// ── Empty State ───────────────────────────────────────────────
+// Shown when a table or list has no data
 function EmptyState({ icon, title, subtitle, action }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-400 mb-4 text-3xl">{icon}</div>
+      <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-400 mb-4 text-3xl">
+        {icon}
+      </div>
       <h3 className="text-slate-700 font-bold text-lg mb-1">{title}</h3>
       <p className="text-slate-400 text-sm mb-5 max-w-xs">{subtitle}</p>
       {action}
@@ -255,7 +377,9 @@ function EmptyState({ icon, title, subtitle, action }) {
   );
 }
 
-// ─── LOADING SPINNER ──────────────────────────────────────────────────────────
+
+// ── Loading Spinner ───────────────────────────────────────────
+// Centered spinner shown while fetching data
 function Spinner() {
   return (
     <div className="flex items-center justify-center py-16">
@@ -264,28 +388,52 @@ function Spinner() {
   );
 }
 
-// ─── PRIMARY BUTTON ───────────────────────────────────────────────────────────
+
+// ── Primary Button ────────────────────────────────────────────
+// Gradient action button used throughout the dashboard
 function PrimaryBtn({ onClick, children, gradient = "from-blue-600 to-violet-600", className = "" }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r ${gradient} text-white rounded-xl font-semibold text-sm shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 ${className}`}
+      className={`
+        flex items-center gap-2 px-5 py-2.5 text-white rounded-xl
+        font-semibold text-sm shadow-md
+        bg-gradient-to-r ${gradient}
+        hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200
+        ${className}
+      `}
     >
       {children}
     </button>
   );
 }
 
-// ─── STUDENT DETAIL MODAL ─────────────────────────────────────────────────────
+
+
+
+/* ============================================================
+   SECTION 4 — STUDENT DETAIL MODAL
+   Full profile popup including academic results table
+   ============================================================ */
 function StudentDetailModal({ student, onClose, results }) {
+
+  // Filter results that belong to this specific student
   const studentResults = results.filter(
     (r) => r.student_id === student.id || r.email === student.Email
   );
 
   return (
-    <Modal title={`${student.FullName || "Student"} — Full Profile`} onClose={onClose} size="xl">
+    <Modal
+      title={`${student.FullName || "Student"} — Full Profile`}
+      onClose={onClose}
+      size="xl"
+    >
       <div className="space-y-6">
+
+        {/* ── Profile Summary Card ── */}
         <div className="bg-gradient-to-r from-blue-50 to-violet-50 rounded-2xl p-5 border border-blue-100">
+
+          {/* Avatar + name + email + status */}
           <div className="flex items-center gap-4 mb-4">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white text-2xl font-black flex-shrink-0">
               {(student.FullName || "?")[0].toUpperCase()}
@@ -298,21 +446,29 @@ function StudentDetailModal({ student, onClose, results }) {
               </Badge>
             </div>
           </div>
+
+          {/* Detail fields grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
               { label: "Matric Number", value: student.MatricNumber },
-              { label: "Department", value: student.Department },
-              { label: "Level", value: student.Level },
-              { label: "Session", value: student.Session },
-              { label: "Nationality", value: student.Nationality },
-              { label: "Date of Birth", value: student.DateofBirth },
-            ].map((f) => (
-              <div key={f.label}>
-                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{f.label}</p>
-                <p className="text-sm font-bold text-slate-700 mt-0.5">{f.value || "—"}</p>
+              { label: "Department",    value: student.Department   },
+              { label: "Level",         value: student.Level        },
+              { label: "Session",       value: student.Session      },
+              { label: "Nationality",   value: student.Nationality  },
+              { label: "Date of Birth", value: student.DateofBirth  },
+            ].map((field) => (
+              <div key={field.label}>
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">
+                  {field.label}
+                </p>
+                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                  {field.value || "—"}
+                </p>
               </div>
             ))}
           </div>
+
+          {/* Address — only shown if it exists */}
           {student.HouseAddress && (
             <div className="mt-3 pt-3 border-t border-blue-100">
               <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Address</p>
@@ -321,12 +477,14 @@ function StudentDetailModal({ student, onClose, results }) {
           )}
         </div>
 
+        {/* ── Academic Results Table ── */}
         <div>
           <h4 className="font-black text-slate-800 mb-3 flex items-center gap-2">
             {Icon.results}
             Academic Results
             <Badge color="blue">{studentResults.length}</Badge>
           </h4>
+
           {studentResults.length === 0 ? (
             <div className="bg-slate-50 rounded-2xl p-6 text-center">
               <p className="text-slate-400 text-sm">No results published for this student yet.</p>
@@ -334,13 +492,17 @@ function StudentDetailModal({ student, onClose, results }) {
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-slate-100">
               <table className="w-full min-w-[500px] text-sm">
+
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
                     {["Course", "Score", "Grade", "Semester", "Session"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-slate-50">
                   {studentResults.map((r, i) => (
                     <tr key={r.id || i} className="hover:bg-slate-50">
@@ -355,81 +517,155 @@ function StudentDetailModal({ student, onClose, results }) {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-slate-500">{r.semester || "—"}</td>
-                      <td className="px-4 py-3 text-slate-400">{r.session || "—"}</td>
+                      <td className="px-4 py-3 text-slate-400">{r.session  || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
+
               </table>
             </div>
           )}
         </div>
+
       </div>
     </Modal>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  MAIN ADMIN DASHBOARD COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+
+
+
+/* ============================================================
+   SECTION 5 — MAIN ADMIN DASHBOARD COMPONENT
+   All state, data fetching, CRUD logic, and UI live here
+   ============================================================ */
 export default function Admindashboard() {
+
   const navigate = useNavigate();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [modal, setModal] = useState(null);
-  const [confirm, setConfirm] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [results, setResults] = useState([]);
+  // ── UI State ────────────────────────────────────────────────
+  const [sidebarOpen,      setSidebarOpen]      = useState(false);
+  const [activeTab,        setActiveTab]        = useState("dashboard");
+  const [modal,            setModal]            = useState(null);   // { type, data? }
+  const [confirm,          setConfirm]          = useState(null);   // confirm dialog config
+  const [toasts,           setToasts]           = useState([]);
+  const [saving,           setSaving]           = useState(false);
+  const [selectedStudent,  setSelectedStudent]  = useState(null);
+
+
+  // ── Data State ──────────────────────────────────────────────
+  const [students,      setStudents]      = useState([]);
+  const [courses,       setCourses]       = useState([]);
+  const [results,       setResults]       = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [timetables, setTimetables] = useState([]);
+  const [timetables,    setTimetables]    = useState([]);
 
+  // Tracks loading state per data type
   const [loadingMap, setLoadingMap] = useState({
     students: false, courses: false, results: false,
     announcements: false, timetables: false,
   });
 
-  // ✅ Clean form state matching new schema
+
+  // ── Form State ──────────────────────────────────────────────
   const [courseForm, setCourseForm] = useState({
     title: "", code: "", description: "", credits: "", department: "", semester: "First",
   });
+
   const [resultForm, setResultForm] = useState({
     student_id: "", course_id: "", score: "", grade: "", semester: "First Semester", session: "",
   });
+
   const [announcementForm, setAnnouncementForm] = useState({
     title: "", content: "", target: "all", priority: "normal",
   });
+
   const [timetableForm, setTimetableForm] = useState({
     course_id: "", day: "Monday", start_time: "", end_time: "", venue: "", lecturer: "",
   });
 
+
+
+
+  /* ==========================================================
+     SECTION 5A — HELPER UTILITIES
+     ========================================================== */
+
+  // Show a toast notification — auto-removes after 4.5 seconds
   const toast = useCallback((message, type = "success") => {
     const id = Date.now() + Math.random();
-    setToasts((p) => [...p, { id, message, type }]);
-    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 4500);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
   }, []);
 
+  // Manually dismiss a toast by its ID
   const removeToast = useCallback((id) => {
-    setToasts((p) => p.filter((t) => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const setLoading = (key, val) => setLoadingMap((p) => ({ ...p, [key]: val }));
+  // Update loading state for a specific data key
+  const setLoading = (key, val) =>
+    setLoadingMap((prev) => ({ ...prev, [key]: val }));
 
+  // Auto-calculate grade from numeric score
+  const autoGrade = (score) => {
+    const n = Number(score);
+    if (n >= 70) return "A";
+    if (n >= 60) return "B";
+    if (n >= 50) return "C";
+    if (n >= 45) return "D";
+    if (n >= 40) return "E";
+    return "F";
+  };
+
+  // Format ISO date string to readable format e.g. "12 Jan 2025"
+  const formatDate = (str) =>
+    str
+      ? new Date(str).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      : "—";
+
+  // Map grade letters to badge colors
+  const gradeColor = (g) =>
+    ({ A: "green", B: "blue", C: "amber", D: "violet", E: "cyan", F: "red" }[g] || "slate");
+
+  // Badge colors for announcement priority and target audience
+  const priorityColor = { normal: "slate", important: "amber", urgent: "red"    };
+  const targetColor   = { all: "blue",     students: "green",  staff: "violet"  };
+
+
+
+
+  /* ==========================================================
+     SECTION 5B — AUTH CHECK (runs once on mount)
+     ========================================================== */
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+
+      // Not logged in — redirect to login
       if (!session) { navigate("/login"); return; }
+
+      // Logged in but not the admin — redirect to student dashboard
       if (session.user.email !== ADMIN_EMAIL) { navigate("/dashboard"); return; }
+
+      // Authenticated as admin — load all data
       fetchAll();
     };
+
     checkAuth();
     // eslint-disable-next-line
   }, [navigate]);
 
+
+
+
+  /* ==========================================================
+     SECTION 5C — DATA FETCHING
+     All five fetch functions pull from Supabase
+     ========================================================== */
+
+  // Trigger all fetches at once
   const fetchAll = () => {
     fetchStudents();
     fetchCourses();
@@ -443,7 +679,7 @@ export default function Admindashboard() {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .neq("Email", ADMIN_EMAIL)
+      .neq("Email", ADMIN_EMAIL)           // exclude admin from student list
       .order("FullName", { ascending: true });
     if (error) toast("Failed to load students: " + error.message, "error");
     else setStudents(data || []);
@@ -494,11 +730,17 @@ export default function Admindashboard() {
     setLoading("timetables", false);
   };
 
+
+
+
+  /* ==========================================================
+     SECTION 5D — LOGOUT
+     ========================================================== */
   const handleLogout = () => {
     setConfirm({
-      title: "Log Out",
+      title:   "Log Out",
       message: "Are you sure you want to log out of the admin portal?",
-      danger: false,
+      danger:  false,
       onConfirm: async () => {
         await supabase.auth.signOut();
         localStorage.removeItem("user");
@@ -508,66 +750,68 @@ export default function Admindashboard() {
     });
   };
 
-  const autoGrade = (score) => {
-    const n = Number(score);
-    if (n >= 70) return "A";
-    if (n >= 60) return "B";
-    if (n >= 50) return "C";
-    if (n >= 45) return "D";
-    if (n >= 40) return "E";
-    return "F";
-  };
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  COURSES CRUD
-  // ══════════════════════════════════════════════════════════════════════════
+
+
+  /* ==========================================================
+     SECTION 5E — COURSES CRUD
+     Create, Read (fetched above), Update, Delete
+     ========================================================== */
+
+  // Open modal with blank form for a new course
   const openAddCourse = () => {
     setCourseForm({ title: "", code: "", description: "", credits: "", department: "", semester: "First" });
     setModal({ type: "course" });
   };
 
+  // Open modal pre-filled with existing course data for editing
   const openEditCourse = (c) => {
     setCourseForm({
-      title: c.title || "",
-      code: c.code || "",
+      title:       c.title       || "",
+      code:        c.code        || "",
       description: c.description || "",
-      credits: c.credits || "",
-      department: c.department || "",
-      semester: c.semester || "First",
+      credits:     c.credits     || "",
+      department:  c.department  || "",
+      semester:    c.semester    || "First",
     });
     setModal({ type: "course", data: c });
   };
 
+  // Save course — handles both add and edit in one function
   const saveCourse = async () => {
     if (!courseForm.title.trim() || !courseForm.code.trim()) {
-      toast("Course title and code are required.", "error"); return;
+      toast("Course title and code are required.", "error");
+      return;
     }
+
     setSaving(true);
 
     const payload = {
-      title: courseForm.title.trim(),
-      code: courseForm.code.trim().toUpperCase(),
+      title:       courseForm.title.trim(),
+      code:        courseForm.code.trim().toUpperCase(),
       description: courseForm.description.trim(),
-      credits: Number(courseForm.credits) || 0,
-      department: courseForm.department.trim(),
-      semester: courseForm.semester,
+      credits:     Number(courseForm.credits) || 0,
+      department:  courseForm.department.trim(),
+      semester:    courseForm.semester,
     };
 
-    const isEdit = !!modal?.data;
-    const { error } = isEdit
+    const isEdit      = !!modal?.data;
+    const { error }   = isEdit
       ? await supabase.from("courses").update(payload).eq("id", modal.data.id)
       : await supabase.from("courses").insert([payload]);
 
     setSaving(false);
     if (error) { toast("Error: " + error.message, "error"); return; }
+
     toast(isEdit ? "Course updated!" : "Course added!");
     setModal(null);
     fetchCourses();
   };
 
+  // Ask for confirmation before deleting a course
   const confirmDeleteCourse = (id) => {
     setConfirm({
-      title: "Delete Course",
+      title:   "Delete Course",
       message: "This will permanently delete the course.",
       onConfirm: async () => {
         const { error } = await supabase.from("courses").delete().eq("id", id);
@@ -579,64 +823,75 @@ export default function Admindashboard() {
     });
   };
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RESULTS CRUD
-  // ══════════════════════════════════════════════════════════════════════════
+
+
+
+  /* ==========================================================
+     SECTION 5F — RESULTS CRUD
+     ========================================================== */
+
+  // Open blank result form
   const openPublishResult = () => {
     setResultForm({ student_id: "", course_id: "", score: "", grade: "", semester: "First Semester", session: "" });
     setModal({ type: "result" });
   };
 
+  // Open result form pre-filled for editing
   const openEditResult = (r) => {
     setResultForm({
       student_id: r.student_id || "",
-      course_id: r.course_id || "",
-      score: r.score || "",
-      grade: r.grade || "",
-      semester: r.semester || "First Semester",
-      session: r.session || "",
+      course_id:  r.course_id  || "",
+      score:      r.score      || "",
+      grade:      r.grade      || "",
+      semester:   r.semester   || "First Semester",
+      session:    r.session    || "",
     });
     setModal({ type: "result", data: r });
   };
 
+  // Save result — enriches payload with student & course info
   const saveResult = async () => {
     if (!resultForm.student_id || !resultForm.course_id || resultForm.score === "") {
-      toast("Student, course, and score are required.", "error"); return;
+      toast("Student, course, and score are required.", "error");
+      return;
     }
+
     setSaving(true);
 
-    const selectedStudent = students.find((s) => String(s.id) === String(resultForm.student_id));
-    const selectedCourse = courses.find((c) => c.id === resultForm.course_id);
+    const pickedStudent = students.find((s) => String(s.id) === String(resultForm.student_id));
+    const pickedCourse  = courses.find((c) => c.id === resultForm.course_id);
 
     const payload = {
-      student_id: Number(resultForm.student_id),
-      email: selectedStudent?.Email || "",
-      course_id: resultForm.course_id,
-      course_code: selectedCourse?.code || "",
-      course_title: selectedCourse?.title || "",
-      score: Number(resultForm.score),
-      grade: resultForm.grade || autoGrade(resultForm.score),
-      units: selectedCourse?.credits || 0,
-      semester: resultForm.semester,
-      session: resultForm.session.trim(),
-      published: true,
+      student_id:   Number(resultForm.student_id),
+      email:        pickedStudent?.Email    || "",
+      course_id:    resultForm.course_id,
+      course_code:  pickedCourse?.code      || "",
+      course_title: pickedCourse?.title     || "",
+      score:        Number(resultForm.score),
+      grade:        resultForm.grade        || autoGrade(resultForm.score),
+      units:        pickedCourse?.credits   || 0,
+      semester:     resultForm.semester,
+      session:      resultForm.session.trim(),
+      published:    true,
     };
 
-    const isEdit = !!modal?.data;
+    const isEdit    = !!modal?.data;
     const { error } = isEdit
       ? await supabase.from("results").update(payload).eq("id", modal.data.id)
       : await supabase.from("results").insert([payload]);
 
     setSaving(false);
     if (error) { toast("Error: " + error.message, "error"); return; }
+
     toast(isEdit ? "Result updated!" : "Result published!");
     setModal(null);
     fetchResults();
   };
 
+  // Ask for confirmation before deleting a result
   const confirmDeleteResult = (id) => {
     setConfirm({
-      title: "Delete Result",
+      title:   "Delete Result",
       message: "This result will be permanently removed.",
       onConfirm: async () => {
         const { error } = await supabase.from("results").delete().eq("id", id);
@@ -648,9 +903,13 @@ export default function Admindashboard() {
     });
   };
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  ANNOUNCEMENTS CRUD
-  // ══════════════════════════════════════════════════════════════════════════
+
+
+
+  /* ==========================================================
+     SECTION 5G — ANNOUNCEMENTS CRUD
+     ========================================================== */
+
   const openAddAnnouncement = () => {
     setAnnouncementForm({ title: "", content: "", target: "all", priority: "normal" });
     setModal({ type: "announcement" });
@@ -658,9 +917,9 @@ export default function Admindashboard() {
 
   const openEditAnnouncement = (a) => {
     setAnnouncementForm({
-      title: a.title || "",
-      content: a.content || "",
-      target: a.target || "all",
+      title:    a.title    || "",
+      content:  a.content  || "",
+      target:   a.target   || "all",
       priority: a.priority || "normal",
     });
     setModal({ type: "announcement", data: a });
@@ -668,24 +927,29 @@ export default function Admindashboard() {
 
   const saveAnnouncement = async () => {
     if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
-      toast("Title and content are required.", "error"); return;
+      toast("Title and content are required.", "error");
+      return;
     }
+
     setSaving(true);
+
     const payload = {
-      title: announcementForm.title.trim(),
-      content: announcementForm.content.trim(),
-      target: announcementForm.target,
+      title:    announcementForm.title.trim(),
+      content:  announcementForm.content.trim(),
+      target:   announcementForm.target,
       priority: announcementForm.priority,
-      type: announcementForm.priority === "urgent" ? "Exam" : "School",
+      // urgent announcements are flagged as Exam type
+      type:     announcementForm.priority === "urgent" ? "Exam" : "School",
     };
 
-    const isEdit = !!modal?.data;
+    const isEdit    = !!modal?.data;
     const { error } = isEdit
       ? await supabase.from("announcements").update(payload).eq("id", modal.data.id)
       : await supabase.from("announcements").insert([payload]);
 
     setSaving(false);
     if (error) { toast("Error: " + error.message, "error"); return; }
+
     toast(isEdit ? "Announcement updated!" : "Announcement posted!");
     setModal(null);
     fetchAnnouncements();
@@ -693,7 +957,7 @@ export default function Admindashboard() {
 
   const confirmDeleteAnnouncement = (id) => {
     setConfirm({
-      title: "Delete Announcement",
+      title:   "Delete Announcement",
       message: "This announcement will be permanently removed.",
       onConfirm: async () => {
         const { error } = await supabase.from("announcements").delete().eq("id", id);
@@ -705,9 +969,13 @@ export default function Admindashboard() {
     });
   };
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  TIMETABLE CRUD
-  // ══════════════════════════════════════════════════════════════════════════
+
+
+
+  /* ==========================================================
+     SECTION 5H — TIMETABLE CRUD
+     ========================================================== */
+
   const openAddTimetable = () => {
     setTimetableForm({ course_id: "", day: "Monday", start_time: "", end_time: "", venue: "", lecturer: "" });
     setModal({ type: "timetable" });
@@ -715,42 +983,45 @@ export default function Admindashboard() {
 
   const openEditTimetable = (t) => {
     setTimetableForm({
-      course_id: t.course_id || "",
-      day: t.day || "Monday",
+      course_id:  t.course_id  || "",
+      day:        t.day        || "Monday",
       start_time: t.start_time || "",
-      end_time: t.end_time || "",
-      venue: t.venue || "",
-      lecturer: t.lecturer || "",
+      end_time:   t.end_time   || "",
+      venue:      t.venue      || "",
+      lecturer:   t.lecturer   || "",
     });
     setModal({ type: "timetable", data: t });
   };
 
   const saveTimetable = async () => {
     if (!timetableForm.course_id || !timetableForm.day || !timetableForm.start_time) {
-      toast("Course, day, and start time are required.", "error"); return;
+      toast("Course, day, and start time are required.", "error");
+      return;
     }
+
     setSaving(true);
 
-    const selectedCourse = courses.find((c) => c.id === timetableForm.course_id);
+    const pickedCourse = courses.find((c) => c.id === timetableForm.course_id);
 
     const payload = {
-      course_id: timetableForm.course_id,
-      course_code: selectedCourse?.code || "",
-      course_title: selectedCourse?.title || "",
-      day: timetableForm.day,
-      start_time: timetableForm.start_time,
-      end_time: timetableForm.end_time,
-      venue: timetableForm.venue.trim(),
-      lecturer: timetableForm.lecturer.trim(),
+      course_id:    timetableForm.course_id,
+      course_code:  pickedCourse?.code  || "",
+      course_title: pickedCourse?.title || "",
+      day:          timetableForm.day,
+      start_time:   timetableForm.start_time,
+      end_time:     timetableForm.end_time,
+      venue:        timetableForm.venue.trim(),
+      lecturer:     timetableForm.lecturer.trim(),
     };
 
-    const isEdit = !!modal?.data;
+    const isEdit    = !!modal?.data;
     const { error } = isEdit
       ? await supabase.from("timetable").update(payload).eq("id", modal.data.id)
       : await supabase.from("timetable").insert([payload]);
 
     setSaving(false);
     if (error) { toast("Error: " + error.message, "error"); return; }
+
     toast(isEdit ? "Timetable updated!" : "Class added!");
     setModal(null);
     fetchTimetables();
@@ -758,7 +1029,7 @@ export default function Admindashboard() {
 
   const confirmDeleteTimetable = (id) => {
     setConfirm({
-      title: "Remove Class",
+      title:   "Remove Class",
       message: "This timetable entry will be permanently removed.",
       onConfirm: async () => {
         const { error } = await supabase.from("timetable").delete().eq("id", id);
@@ -770,9 +1041,11 @@ export default function Admindashboard() {
     });
   };
 
+
+  // Ask for confirmation before removing a student
   const confirmDeleteStudent = (id, name) => {
     setConfirm({
-      title: "Remove Student",
+      title:   "Remove Student",
       message: `Remove "${name}" from the system? This cannot be undone.`,
       onConfirm: async () => {
         const { error } = await supabase.from("profiles").delete().eq("id", id);
@@ -784,27 +1057,33 @@ export default function Admindashboard() {
     });
   };
 
+
+
+
+  /* ==========================================================
+     SECTION 5I — SIDEBAR NAV ITEMS
+     Drives both the sidebar links and their badge counts
+     ========================================================== */
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: Icon.dashboard },
-    { id: "students", label: "Students", icon: Icon.students, count: students.length },
-    { id: "courses", label: "Courses", icon: Icon.courses, count: courses.length },
-    { id: "results", label: "Results", icon: Icon.results, count: results.length },
-    { id: "announcements", label: "Announcements", icon: Icon.bell, count: announcements.length },
-    { id: "timetable", label: "Timetable", icon: Icon.calendar, count: timetables.length },
+    { id: "dashboard",     label: "Dashboard",     icon: Icon.dashboard, count: 0                  },
+    { id: "students",      label: "Students",      icon: Icon.students,  count: students.length     },
+    { id: "courses",       label: "Courses",       icon: Icon.courses,   count: courses.length      },
+    { id: "results",       label: "Results",       icon: Icon.results,   count: results.length      },
+    { id: "announcements", label: "Announcements", icon: Icon.bell,      count: announcements.length},
+    { id: "timetable",     label: "Timetable",     icon: Icon.calendar,  count: timetables.length   },
   ];
 
-  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-  const gradeColor = (g) => ({ A: "green", B: "blue", C: "amber", D: "violet", E: "cyan", F: "red" }[g] || "slate");
-  const priorityColor = { normal: "slate", important: "amber", urgent: "red" };
-  const targetColor = { all: "blue", students: "green", staff: "violet" };
-  const formatDate = (str) => str ? new Date(str).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
-  // ════════════════════════════════════════════════════════════════════════════
-  //  RENDER
-  // ════════════════════════════════════════════════════════════════════════════
+
+  /* ==========================================================
+     SECTION 5J — RENDER / RETURN
+     The full page layout: overlays → sidebar → header → tabs
+     ========================================================== */
   return (
     <>
+      {/* ── Global Overlays (toasts, confirms, modals, student detail) ── */}
+
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {confirm && (
@@ -825,44 +1104,86 @@ export default function Admindashboard() {
         />
       )}
 
-      {/* COURSE MODAL */}
+
+      {/* ── Course Modal ── */}
       {modal?.type === "course" && (
-        <Modal title={modal.data ? "Edit Course" : "Add New Course"} onClose={() => setModal(null)}>
+        <Modal
+          title={modal.data ? "Edit Course" : "Add New Course"}
+          onClose={() => setModal(null)}
+        >
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Course Title" required>
-                <input className={inputCls} placeholder="e.g. Data Structures"
-                  value={courseForm.title} onChange={(e) => setCourseForm((p) => ({ ...p, title: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Data Structures"
+                  value={courseForm.title}
+                  onChange={(e) => setCourseForm((p) => ({ ...p, title: e.target.value }))}
+                />
               </Field>
               <Field label="Course Code" required>
-                <input className={inputCls} placeholder="e.g. CSC201"
-                  value={courseForm.code} onChange={(e) => setCourseForm((p) => ({ ...p, code: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  placeholder="e.g. CSC201"
+                  value={courseForm.code}
+                  onChange={(e) => setCourseForm((p) => ({ ...p, code: e.target.value }))}
+                />
               </Field>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Department">
-                <input className={inputCls} placeholder="e.g. Computer Science"
-                  value={courseForm.department} onChange={(e) => setCourseForm((p) => ({ ...p, department: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  placeholder="e.g. Computer Science"
+                  value={courseForm.department}
+                  onChange={(e) => setCourseForm((p) => ({ ...p, department: e.target.value }))}
+                />
               </Field>
               <Field label="Credit Units">
-                <input className={inputCls} type="number" placeholder="e.g. 3" min="0"
-                  value={courseForm.credits} onChange={(e) => setCourseForm((p) => ({ ...p, credits: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  type="number"
+                  placeholder="e.g. 3"
+                  min="0"
+                  value={courseForm.credits}
+                  onChange={(e) => setCourseForm((p) => ({ ...p, credits: e.target.value }))}
+                />
               </Field>
               <Field label="Semester">
-                <select className={inputCls} value={courseForm.semester}
-                  onChange={(e) => setCourseForm((p) => ({ ...p, semester: e.target.value }))}>
+                <select
+                  className={inputCls}
+                  value={courseForm.semester}
+                  onChange={(e) => setCourseForm((p) => ({ ...p, semester: e.target.value }))}
+                >
                   <option value="First">First Semester</option>
                   <option value="Second">Second Semester</option>
                 </select>
               </Field>
             </div>
+
             <Field label="Description">
-              <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Short course description..."
-                value={courseForm.description} onChange={(e) => setCourseForm((p) => ({ ...p, description: e.target.value }))} />
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={3}
+                placeholder="Short course description..."
+                value={courseForm.description}
+                onChange={(e) => setCourseForm((p) => ({ ...p, description: e.target.value }))}
+              />
             </Field>
+
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors text-sm">Cancel</button>
-              <button onClick={saveCourse} disabled={saving} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveCourse}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60"
+              >
                 {saving ? "Saving…" : modal.data ? "Save Changes" : "Add Course"}
               </button>
             </div>
@@ -870,13 +1191,20 @@ export default function Admindashboard() {
         </Modal>
       )}
 
-      {/* RESULT MODAL */}
+
+      {/* ── Result Modal ── */}
       {modal?.type === "result" && (
-        <Modal title={modal.data ? "Edit Result" : "Publish Result"} onClose={() => setModal(null)}>
+        <Modal
+          title={modal.data ? "Edit Result" : "Publish Result"}
+          onClose={() => setModal(null)}
+        >
           <div className="flex flex-col gap-4">
             <Field label="Student" required>
-              <select className={inputCls} value={resultForm.student_id}
-                onChange={(e) => setResultForm((p) => ({ ...p, student_id: e.target.value }))}>
+              <select
+                className={inputCls}
+                value={resultForm.student_id}
+                onChange={(e) => setResultForm((p) => ({ ...p, student_id: e.target.value }))}
+              >
                 <option value="">— Select Student —</option>
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -885,9 +1213,13 @@ export default function Admindashboard() {
                 ))}
               </select>
             </Field>
+
             <Field label="Course" required>
-              <select className={inputCls} value={resultForm.course_id}
-                onChange={(e) => setResultForm((p) => ({ ...p, course_id: e.target.value }))}>
+              <select
+                className={inputCls}
+                value={resultForm.course_id}
+                onChange={(e) => setResultForm((p) => ({ ...p, course_id: e.target.value }))}
+              >
                 <option value="">— Select Course —</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -896,35 +1228,65 @@ export default function Admindashboard() {
                 ))}
               </select>
             </Field>
+
             <div className="grid grid-cols-2 gap-4">
               <Field label="Score (0–100)" required>
-                <input className={inputCls} type="number" min="0" max="100" placeholder="e.g. 78"
+                <input
+                  className={inputCls}
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="e.g. 78"
                   value={resultForm.score}
                   onChange={(e) => {
                     const score = e.target.value;
+                    // Auto-calculate grade as admin types the score
                     setResultForm((p) => ({ ...p, score, grade: autoGrade(score) }));
-                  }} />
+                  }}
+                />
               </Field>
-              <Field label="Grade (auto)">
-                <input className={`${inputCls} bg-slate-100 cursor-not-allowed font-bold text-center`} readOnly value={resultForm.grade} />
+              <Field label="Grade (auto-calculated)">
+                <input
+                  className={`${inputCls} bg-slate-100 cursor-not-allowed font-bold text-center`}
+                  readOnly
+                  value={resultForm.grade}
+                />
               </Field>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <Field label="Semester">
-                <select className={inputCls} value={resultForm.semester}
-                  onChange={(e) => setResultForm((p) => ({ ...p, semester: e.target.value }))}>
+                <select
+                  className={inputCls}
+                  value={resultForm.semester}
+                  onChange={(e) => setResultForm((p) => ({ ...p, semester: e.target.value }))}
+                >
                   <option>First Semester</option>
                   <option>Second Semester</option>
                 </select>
               </Field>
               <Field label="Session">
-                <input className={inputCls} placeholder="e.g. 2023/2024"
-                  value={resultForm.session} onChange={(e) => setResultForm((p) => ({ ...p, session: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  placeholder="e.g. 2023/2024"
+                  value={resultForm.session}
+                  onChange={(e) => setResultForm((p) => ({ ...p, session: e.target.value }))}
+                />
               </Field>
             </div>
+
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm">Cancel</button>
-              <button onClick={saveResult} disabled={saving} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveResult}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60"
+              >
                 {saving ? "Saving…" : modal.data ? "Save Changes" : "Publish Result"}
               </button>
             </div>
@@ -932,39 +1294,70 @@ export default function Admindashboard() {
         </Modal>
       )}
 
-      {/* ANNOUNCEMENT MODAL */}
+
+      {/* ── Announcement Modal ── */}
       {modal?.type === "announcement" && (
-        <Modal title={modal.data ? "Edit Announcement" : "New Announcement"} onClose={() => setModal(null)}>
+        <Modal
+          title={modal.data ? "Edit Announcement" : "New Announcement"}
+          onClose={() => setModal(null)}
+        >
           <div className="flex flex-col gap-4">
             <Field label="Title" required>
-              <input className={inputCls} placeholder="Announcement title"
-                value={announcementForm.title} onChange={(e) => setAnnouncementForm((p) => ({ ...p, title: e.target.value }))} />
+              <input
+                className={inputCls}
+                placeholder="Announcement title"
+                value={announcementForm.title}
+                onChange={(e) => setAnnouncementForm((p) => ({ ...p, title: e.target.value }))}
+              />
             </Field>
+
             <Field label="Content" required>
-              <textarea className={`${inputCls} resize-none`} rows={4} placeholder="Write the announcement content here…"
-                value={announcementForm.content} onChange={(e) => setAnnouncementForm((p) => ({ ...p, content: e.target.value }))} />
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={4}
+                placeholder="Write the announcement content here…"
+                value={announcementForm.content}
+                onChange={(e) => setAnnouncementForm((p) => ({ ...p, content: e.target.value }))}
+              />
             </Field>
+
             <div className="grid grid-cols-2 gap-4">
               <Field label="Target Audience">
-                <select className={inputCls} value={announcementForm.target}
-                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, target: e.target.value }))}>
+                <select
+                  className={inputCls}
+                  value={announcementForm.target}
+                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, target: e.target.value }))}
+                >
                   <option value="all">All</option>
                   <option value="students">Students Only</option>
                   <option value="staff">Staff Only</option>
                 </select>
               </Field>
               <Field label="Priority">
-                <select className={inputCls} value={announcementForm.priority}
-                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, priority: e.target.value }))}>
+                <select
+                  className={inputCls}
+                  value={announcementForm.priority}
+                  onChange={(e) => setAnnouncementForm((p) => ({ ...p, priority: e.target.value }))}
+                >
                   <option value="normal">Normal</option>
                   <option value="important">Important</option>
                   <option value="urgent">Urgent</option>
                 </select>
               </Field>
             </div>
+
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm">Cancel</button>
-              <button onClick={saveAnnouncement} disabled={saving} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveAnnouncement}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60"
+              >
                 {saving ? "Saving…" : modal.data ? "Save Changes" : "Post Announcement"}
               </button>
             </div>
@@ -972,46 +1365,86 @@ export default function Admindashboard() {
         </Modal>
       )}
 
-      {/* TIMETABLE MODAL */}
+
+      {/* ── Timetable Modal ── */}
       {modal?.type === "timetable" && (
-        <Modal title={modal.data ? "Edit Timetable Entry" : "Add Class to Timetable"} onClose={() => setModal(null)}>
+        <Modal
+          title={modal.data ? "Edit Timetable Entry" : "Add Class to Timetable"}
+          onClose={() => setModal(null)}
+        >
           <div className="flex flex-col gap-4">
             <Field label="Course" required>
-              <select className={inputCls} value={timetableForm.course_id}
-                onChange={(e) => setTimetableForm((p) => ({ ...p, course_id: e.target.value }))}>
+              <select
+                className={inputCls}
+                value={timetableForm.course_id}
+                onChange={(e) => setTimetableForm((p) => ({ ...p, course_id: e.target.value }))}
+              >
                 <option value="">— Select Course —</option>
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
                 ))}
               </select>
             </Field>
+
             <Field label="Day" required>
-              <select className={inputCls} value={timetableForm.day}
-                onChange={(e) => setTimetableForm((p) => ({ ...p, day: e.target.value }))}>
+              <select
+                className={inputCls}
+                value={timetableForm.day}
+                onChange={(e) => setTimetableForm((p) => ({ ...p, day: e.target.value }))}
+              >
                 {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </Field>
+
             <div className="grid grid-cols-2 gap-4">
               <Field label="Start Time" required>
-                <input className={inputCls} type="time" value={timetableForm.start_time}
-                  onChange={(e) => setTimetableForm((p) => ({ ...p, start_time: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  type="time"
+                  value={timetableForm.start_time}
+                  onChange={(e) => setTimetableForm((p) => ({ ...p, start_time: e.target.value }))}
+                />
               </Field>
               <Field label="End Time">
-                <input className={inputCls} type="time" value={timetableForm.end_time}
-                  onChange={(e) => setTimetableForm((p) => ({ ...p, end_time: e.target.value }))} />
+                <input
+                  className={inputCls}
+                  type="time"
+                  value={timetableForm.end_time}
+                  onChange={(e) => setTimetableForm((p) => ({ ...p, end_time: e.target.value }))}
+                />
               </Field>
             </div>
+
             <Field label="Venue / Room">
-              <input className={inputCls} placeholder="e.g. Hall A, Block C" value={timetableForm.venue}
-                onChange={(e) => setTimetableForm((p) => ({ ...p, venue: e.target.value }))} />
+              <input
+                className={inputCls}
+                placeholder="e.g. Hall A, Block C"
+                value={timetableForm.venue}
+                onChange={(e) => setTimetableForm((p) => ({ ...p, venue: e.target.value }))}
+              />
             </Field>
+
             <Field label="Lecturer">
-              <input className={inputCls} placeholder="e.g. Prof. Adeyemi" value={timetableForm.lecturer}
-                onChange={(e) => setTimetableForm((p) => ({ ...p, lecturer: e.target.value }))} />
+              <input
+                className={inputCls}
+                placeholder="e.g. Prof. Adeyemi"
+                value={timetableForm.lecturer}
+                onChange={(e) => setTimetableForm((p) => ({ ...p, lecturer: e.target.value }))}
+              />
             </Field>
+
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm">Cancel</button>
-              <button onClick={saveTimetable} disabled={saving} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60">
+              <button
+                onClick={() => setModal(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveTimetable}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow hover:shadow-lg disabled:opacity-60"
+              >
                 {saving ? "Saving…" : modal.data ? "Save Changes" : "Add to Timetable"}
               </button>
             </div>
@@ -1019,14 +1452,32 @@ export default function Admindashboard() {
         </Modal>
       )}
 
-      {/* ════════════════════════════ LAYOUT ════════════════════════════════ */}
+
+      {/* ================================================
+          PAGE LAYOUT — Sidebar + Main Content
+          ================================================ */}
       <div className="flex min-h-screen bg-[#f0f2f8] font-sans text-slate-800">
 
+
+        {/* Mobile sidebar backdrop — tapping it closes the sidebar */}
         {sidebarOpen && (
-          <div className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <div
+            className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
 
-        <aside className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-slate-900 text-slate-300 shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}>
+
+        {/* ── Sidebar ── */}
+        <aside className={`
+          fixed inset-y-0 left-0 z-40 w-64 flex flex-col
+          bg-slate-900 text-slate-300 shadow-2xl
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          md:translate-x-0
+        `}>
+
+          {/* Logo / Brand */}
           <div className="px-5 py-6 border-b border-slate-700/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
@@ -1039,19 +1490,33 @@ export default function Admindashboard() {
             </div>
           </div>
 
+          {/* Navigation links */}
           <nav className="flex-1 px-3 py-5 overflow-y-auto space-y-1">
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest px-3 mb-3">Main Menu</p>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest px-3 mb-3">
+              Main Menu
+            </p>
+
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-200 group
-                    ${isActive ? "bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/25" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}
+                  className={`
+                    w-full flex items-center gap-3 px-4 py-3 rounded-2xl
+                    text-sm font-semibold transition-all duration-200 group
+                    ${isActive
+                      ? "bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/25"
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    }
+                  `}
                 >
-                  <span className={isActive ? "text-white" : "text-slate-500 group-hover:text-white transition-colors"}>{item.icon}</span>
+                  <span className={isActive ? "text-white" : "text-slate-500 group-hover:text-white transition-colors"}>
+                    {item.icon}
+                  </span>
                   <span className="flex-1 text-left">{item.label}</span>
+
+                  {/* Badge showing item count */}
                   {item.count > 0 && (
                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isActive ? "bg-white/25 text-white" : "bg-slate-700 text-slate-300"}`}>
                       {item.count}
@@ -1062,86 +1527,133 @@ export default function Admindashboard() {
             })}
           </nav>
 
+          {/* Logout button */}
           <div className="px-3 py-4 border-t border-slate-700/50">
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all"
+            >
               {Icon.logout} Logout
             </button>
           </div>
         </aside>
 
+
+        {/* ── Main Content Area ── */}
         <div className="flex-1 flex flex-col min-h-screen md:ml-64">
 
+          {/* Top Header Bar */}
           <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-slate-200/80 px-4 md:px-8 h-16 flex items-center justify-between shadow-sm flex-shrink-0">
+
             <div className="flex items-center gap-4">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors">
+              {/* Hamburger — mobile only */}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors"
+              >
                 {Icon.menu}
               </button>
+
+              {/* Current page title + date */}
               <div>
                 <h1 className="text-base sm:text-lg font-black text-slate-800 capitalize leading-tight">
-                  {activeTab === "dashboard" ? "Dashboard Overview" : navItems.find((n) => n.id === activeTab)?.label}
+                  {activeTab === "dashboard"
+                    ? "Dashboard Overview"
+                    : navItems.find((n) => n.id === activeTab)?.label}
                 </h1>
                 <p className="text-xs text-slate-400 hidden sm:block">
-                  {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                  {new Date().toLocaleDateString("en-GB", {
+                    weekday: "long", day: "numeric", month: "long", year: "numeric",
+                  })}
                 </p>
               </div>
             </div>
+
+            {/* Admin badge */}
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-700">Administrator</p>
                 <p className="text-xs text-slate-400">{ADMIN_EMAIL}</p>
               </div>
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm shadow">A</div>
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl flex items-center justify-center text-white font-black text-sm shadow">
+                A
+              </div>
             </div>
           </header>
 
+
+          {/* ── Tab Content ── */}
           <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
 
-            {/* DASHBOARD TAB */}
+
+            {/* ================================================
+                DASHBOARD TAB
+                Overview stats + quick actions + recent students
+                ================================================ */}
             {activeTab === "dashboard" && (
               <div className="space-y-6">
+
+                {/* Stat cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <StatCard label="Total Students" value={students.length} icon={Icon.students} gradient="bg-gradient-to-br from-blue-500 to-blue-700" sub="Registered students" />
-                  <StatCard label="Total Courses" value={courses.length} icon={Icon.courses} gradient="bg-gradient-to-br from-violet-500 to-violet-700" sub="Active courses" />
-                  <StatCard label="Results Published" value={results.length} icon={Icon.results} gradient="bg-gradient-to-br from-emerald-500 to-emerald-700" sub="Across all courses" />
-                  <StatCard label="Announcements" value={announcements.length} icon={Icon.bell} gradient="bg-gradient-to-br from-amber-500 to-orange-600" sub="Posted this term" />
-                  <StatCard label="Classes Scheduled" value={timetables.length} icon={Icon.calendar} gradient="bg-gradient-to-br from-cyan-500 to-cyan-700" sub="In current timetable" />
-                  <StatCard label="Active Students" value={students.length} icon={Icon.students} gradient="bg-gradient-to-br from-rose-500 to-rose-700" sub="Currently enrolled" />
+                  <StatCard label="Total Students"     value={students.length}      icon={Icon.students}  gradient="bg-gradient-to-br from-blue-500 to-blue-700"    sub="Registered students"      />
+                  <StatCard label="Total Courses"      value={courses.length}       icon={Icon.courses}   gradient="bg-gradient-to-br from-violet-500 to-violet-700" sub="Active courses"           />
+                  <StatCard label="Results Published"  value={results.length}       icon={Icon.results}   gradient="bg-gradient-to-br from-emerald-500 to-emerald-700" sub="Across all courses"     />
+                  <StatCard label="Announcements"      value={announcements.length} icon={Icon.bell}      gradient="bg-gradient-to-br from-amber-500 to-orange-600"   sub="Posted this term"        />
+                  <StatCard label="Classes Scheduled"  value={timetables.length}    icon={Icon.calendar}  gradient="bg-gradient-to-br from-cyan-500 to-cyan-700"      sub="In current timetable"    />
+                  <StatCard label="Active Students"    value={students.length}      icon={Icon.students}  gradient="bg-gradient-to-br from-rose-500 to-rose-700"      sub="Currently enrolled"       />
                 </div>
 
+                {/* Quick action buttons */}
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
                   <h2 className="text-base font-black text-slate-800 mb-4">Quick Actions</h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                     {[
-                      { label: "Add Course", action: () => { setActiveTab("courses"); setTimeout(openAddCourse, 100); }, cls: "from-blue-600 to-violet-600" },
-                      { label: "Publish Result", action: () => { setActiveTab("results"); setTimeout(openPublishResult, 100); }, cls: "from-emerald-500 to-teal-600" },
-                      { label: "Announce", action: () => { setActiveTab("announcements"); setTimeout(openAddAnnouncement, 100); }, cls: "from-amber-500 to-orange-500" },
-                      { label: "Add Class", action: () => { setActiveTab("timetable"); setTimeout(openAddTimetable, 100); }, cls: "from-cyan-500 to-blue-600" },
-                      { label: "View Students", action: () => setActiveTab("students"), cls: "from-rose-500 to-rose-600" },
+                      { label: "Add Course",     action: () => { setActiveTab("courses");       setTimeout(openAddCourse,        100); }, cls: "from-blue-600 to-violet-600"  },
+                      { label: "Publish Result", action: () => { setActiveTab("results");       setTimeout(openPublishResult,    100); }, cls: "from-emerald-500 to-teal-600" },
+                      { label: "Announce",       action: () => { setActiveTab("announcements"); setTimeout(openAddAnnouncement, 100); }, cls: "from-amber-500 to-orange-500" },
+                      { label: "Add Class",      action: () => { setActiveTab("timetable");     setTimeout(openAddTimetable,    100); }, cls: "from-cyan-500 to-blue-600"    },
+                      { label: "View Students",  action: () => setActiveTab("students"),                                                 cls: "from-rose-500 to-rose-600"    },
                     ].map((q) => (
-                      <button key={q.label} onClick={q.action} className={`bg-gradient-to-r ${q.cls} text-white rounded-2xl py-3 px-3 text-sm font-bold shadow hover:shadow-lg hover:-translate-y-0.5 transition-all`}>
+                      <button
+                        key={q.label}
+                        onClick={q.action}
+                        className={`bg-gradient-to-r ${q.cls} text-white rounded-2xl py-3 px-3 text-sm font-bold shadow hover:shadow-lg hover:-translate-y-0.5 transition-all`}
+                      >
                         {q.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
+                {/* Recent students preview table */}
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                   <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                     <h2 className="text-base font-black text-slate-800">All Students</h2>
-                    <button onClick={() => setActiveTab("students")} className="text-blue-600 text-sm font-bold hover:text-blue-700">View all →</button>
+                    <button
+                      onClick={() => setActiveTab("students")}
+                      className="text-blue-600 text-sm font-bold hover:text-blue-700"
+                    >
+                      View all →
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[400px]">
                       <thead className="bg-slate-50 border-b border-slate-100">
                         <tr>
                           {["#", "Name", "Email", "Department", "Level"].map((h) => (
-                            <th key={h} className="px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                            <th key={h} className="px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                              {h}
+                            </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {students.slice(0, 5).map((s, i) => (
-                          <tr key={s.id} className="hover:bg-slate-50/70 transition-colors cursor-pointer" onClick={() => setSelectedStudent(s)}>
+                          <tr
+                            key={s.id}
+                            className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                            onClick={() => setSelectedStudent(s)}
+                          >
                             <td className="px-6 py-3 text-sm text-slate-400 font-medium">{i + 1}</td>
                             <td className="px-6 py-3">
                               <div className="flex items-center gap-3">
@@ -1151,13 +1663,17 @@ export default function Admindashboard() {
                                 <span className="text-sm font-semibold text-slate-800">{s.FullName || "—"}</span>
                               </div>
                             </td>
-                            <td className="px-6 py-3 text-sm text-slate-500">{s.Email || "—"}</td>
+                            <td className="px-6 py-3 text-sm text-slate-500">{s.Email      || "—"}</td>
                             <td className="px-6 py-3 text-sm text-slate-500">{s.Department || "—"}</td>
-                            <td className="px-6 py-3 text-sm text-slate-500">{s.Level || "—"}</td>
+                            <td className="px-6 py-3 text-sm text-slate-500">{s.Level      || "—"}</td>
                           </tr>
                         ))}
                         {students.length === 0 && (
-                          <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400 text-sm">No students registered yet.</td></tr>
+                          <tr>
+                            <td colSpan={5} className="px-6 py-8 text-center text-slate-400 text-sm">
+                              No students registered yet.
+                            </td>
+                          </tr>
                         )}
                       </tbody>
                     </table>
@@ -1166,25 +1682,40 @@ export default function Admindashboard() {
               </div>
             )}
 
-            {/* STUDENTS TAB */}
+
+            {/* ================================================
+                STUDENTS TAB
+                Full list of all registered students
+                ================================================ */}
             {activeTab === "students" && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
                     <h2 className="text-xl font-black text-slate-800">All Students</h2>
-                    <p className="text-slate-400 text-sm mt-0.5">{students.length} registered student{students.length !== 1 ? "s" : ""}</p>
+                    <p className="text-slate-400 text-sm mt-0.5">
+                      {students.length} registered student{students.length !== 1 ? "s" : ""}
+                    </p>
                   </div>
                 </div>
+
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                  {loadingMap.students ? <Spinner /> : students.length === 0 ? (
-                    <EmptyState icon={Icon.students} title="No Students Found" subtitle="Students will appear here after they register." />
+                  {loadingMap.students ? (
+                    <Spinner />
+                  ) : students.length === 0 ? (
+                    <EmptyState
+                      icon={Icon.students}
+                      title="No Students Found"
+                      subtitle="Students will appear here after they register."
+                    />
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[700px]">
                         <thead className="bg-slate-50 border-b border-slate-100">
                           <tr>
                             {["#", "Student", "Email", "Matric No.", "Department", "Level", "Status", "Actions"].map((h) => (
-                              <th key={h} className="px-4 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                              <th key={h} className="px-4 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                {h}
+                              </th>
                             ))}
                           </tr>
                         </thead>
@@ -1198,24 +1729,35 @@ export default function Admindashboard() {
                                     {(s.FullName || "?")[0].toUpperCase()}
                                   </div>
                                   <div>
-                                    <p className="text-sm font-bold text-slate-800">{s.FullName || "—"}</p>
-                                    <p className="text-xs text-slate-400">{s.Nationality || ""}</p>
+                                    <p className="text-sm font-bold text-slate-800">{s.FullName     || "—"}</p>
+                                    <p className="text-xs text-slate-400">          {s.Nationality  || ""}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-4 py-4 text-sm text-slate-500">{s.Email || "—"}</td>
+                              <td className="px-4 py-4 text-sm text-slate-500">{s.Email       || "—"}</td>
                               <td className="px-4 py-4 text-sm text-slate-500">{s.MatricNumber || "—"}</td>
-                              <td className="px-4 py-4 text-sm text-slate-500">{s.Department || "—"}</td>
-                              <td className="px-4 py-4 text-sm text-slate-500">{s.Level || "—"}</td>
+                              <td className="px-4 py-4 text-sm text-slate-500">{s.Department  || "—"}</td>
+                              <td className="px-4 py-4 text-sm text-slate-500">{s.Level       || "—"}</td>
                               <td className="px-4 py-4">
-                                <Badge color={s.Status === "Active" ? "green" : "amber"}>{s.Status || "Active"}</Badge>
+                                <Badge color={s.Status === "Active" ? "green" : "amber"}>
+                                  {s.Status || "Active"}
+                                </Badge>
                               </td>
                               <td className="px-4 py-4">
+                                {/* Action buttons only show on row hover */}
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button onClick={() => setSelectedStudent(s)} className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all" title="View details">
+                                  <button
+                                    onClick={() => setSelectedStudent(s)}
+                                    className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all"
+                                    title="View details"
+                                  >
                                     {Icon.eye}
                                   </button>
-                                  <button onClick={() => confirmDeleteStudent(s.id, s.FullName)} className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all" title="Remove student">
+                                  <button
+                                    onClick={() => confirmDeleteStudent(s.id, s.FullName)}
+                                    className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all"
+                                    title="Remove student"
+                                  >
                                     {Icon.trash}
                                   </button>
                                 </div>
@@ -1230,44 +1772,75 @@ export default function Admindashboard() {
               </div>
             )}
 
-            {/* COURSES TAB */}
+
+            {/* ================================================
+                COURSES TAB
+                Grid of course cards with edit & delete
+                ================================================ */}
             {activeTab === "courses" && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
                     <h2 className="text-xl font-black text-slate-800">Manage Courses</h2>
-                    <p className="text-slate-400 text-sm mt-0.5">{courses.length} course{courses.length !== 1 ? "s" : ""} registered</p>
+                    <p className="text-slate-400 text-sm mt-0.5">
+                      {courses.length} course{courses.length !== 1 ? "s" : ""} registered
+                    </p>
                   </div>
-                  <PrimaryBtn onClick={openAddCourse} gradient="from-blue-600 to-violet-600">{Icon.plus} Add Course</PrimaryBtn>
+                  <PrimaryBtn onClick={openAddCourse} gradient="from-blue-600 to-violet-600">
+                    {Icon.plus} Add Course
+                  </PrimaryBtn>
                 </div>
-                {loadingMap.courses ? <Spinner /> : courses.length === 0 ? (
+
+                {loadingMap.courses ? (
+                  <Spinner />
+                ) : courses.length === 0 ? (
                   <div className="bg-white rounded-3xl border border-dashed border-slate-200 shadow-sm">
-                    <EmptyState icon={Icon.courses} title="No Courses Yet" subtitle="Start by adding your first course."
-                      action={<PrimaryBtn onClick={openAddCourse}>{Icon.plus} Add First Course</PrimaryBtn>} />
+                    <EmptyState
+                      icon={Icon.courses}
+                      title="No Courses Yet"
+                      subtitle="Start by adding your first course."
+                      action={<PrimaryBtn onClick={openAddCourse}>{Icon.plus} Add First Course</PrimaryBtn>}
+                    />
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {courses.map((c) => (
-                      <div key={c.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all p-5 flex flex-col">
+                      <div
+                        key={c.id}
+                        className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all p-5 flex flex-col"
+                      >
+                        {/* Course badges + title */}
                         <div className="flex items-start justify-between mb-3 gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap mb-1.5">
                               <Badge color="blue">{c.code}</Badge>
                               {c.credits > 0 && <Badge color="slate">{c.credits} cr</Badge>}
-                              {c.semester && <Badge color="violet">{c.semester}</Badge>}
+                              {c.semester   && <Badge color="violet">{c.semester}</Badge>}
                             </div>
                             <h3 className="font-black text-slate-800 leading-snug">{c.title}</h3>
                             {c.department && <p className="text-xs text-slate-400 mt-1">{c.department}</p>}
                           </div>
                         </div>
+
+                        {/* Description preview */}
                         {c.description && (
-                          <p className="text-sm text-slate-500 leading-relaxed flex-1 mb-4 line-clamp-2">{c.description}</p>
+                          <p className="text-sm text-slate-500 leading-relaxed flex-1 mb-4 line-clamp-2">
+                            {c.description}
+                          </p>
                         )}
+
+                        {/* Edit & Delete buttons */}
                         <div className="flex gap-2 pt-3 border-t border-slate-50 mt-auto">
-                          <button onClick={() => openEditCourse(c)} className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-colors">
+                          <button
+                            onClick={() => openEditCourse(c)}
+                            className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-colors"
+                          >
                             {Icon.edit} Edit
                           </button>
-                          <button onClick={() => confirmDeleteCourse(c.id)} className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 text-xs font-bold transition-colors">
+                          <button
+                            onClick={() => confirmDeleteCourse(c.id)}
+                            className="flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 text-xs font-bold transition-colors"
+                          >
                             {Icon.trash} Delete
                           </button>
                         </div>
@@ -1278,33 +1851,57 @@ export default function Admindashboard() {
               </div>
             )}
 
-            {/* RESULTS TAB */}
+
+            {/* ================================================
+                RESULTS TAB
+                Table of published student results
+                ================================================ */}
             {activeTab === "results" && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
                     <h2 className="text-xl font-black text-slate-800">Publish Results</h2>
-                    <p className="text-slate-400 text-sm mt-0.5">{results.length} result{results.length !== 1 ? "s" : ""} published</p>
+                    <p className="text-slate-400 text-sm mt-0.5">
+                      {results.length} result{results.length !== 1 ? "s" : ""} published
+                    </p>
                   </div>
-                  <PrimaryBtn onClick={openPublishResult} gradient="from-emerald-500 to-teal-600">{Icon.plus} Publish Result</PrimaryBtn>
+                  <PrimaryBtn onClick={openPublishResult} gradient="from-emerald-500 to-teal-600">
+                    {Icon.plus} Publish Result
+                  </PrimaryBtn>
                 </div>
+
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                  {loadingMap.results ? <Spinner /> : results.length === 0 ? (
-                    <EmptyState icon={Icon.results} title="No Results Published" subtitle="Publish student results to make them visible."
-                      action={<PrimaryBtn onClick={openPublishResult} gradient="from-emerald-500 to-teal-600">{Icon.plus} Publish First Result</PrimaryBtn>} />
+                  {loadingMap.results ? (
+                    <Spinner />
+                  ) : results.length === 0 ? (
+                    <EmptyState
+                      icon={Icon.results}
+                      title="No Results Published"
+                      subtitle="Publish student results to make them visible."
+                      action={
+                        <PrimaryBtn onClick={openPublishResult} gradient="from-emerald-500 to-teal-600">
+                          {Icon.plus} Publish First Result
+                        </PrimaryBtn>
+                      }
+                    />
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[700px]">
                         <thead className="bg-slate-50 border-b border-slate-100">
                           <tr>
                             {["#", "Student", "Email", "Course", "Score", "Grade", "Semester", "Actions"].map((h) => (
-                              <th key={h} className="px-4 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+                              <th key={h} className="px-4 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                {h}
+                              </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                           {results.map((r, i) => {
-                            const studentProfile = students.find((s) => String(s.id) === String(r.student_id));
+                            // Match the result to the student's profile for their name
+                            const studentProfile = students.find(
+                              (s) => String(s.id) === String(r.student_id)
+                            );
                             return (
                               <tr key={r.id} className="hover:bg-slate-50/70 transition-colors group">
                                 <td className="px-4 py-4 text-sm text-slate-400">{i + 1}</td>
@@ -1324,7 +1921,7 @@ export default function Admindashboard() {
                                 <td className="px-4 py-4 text-sm text-slate-500">{r.semester || "—"}</td>
                                 <td className="px-4 py-4">
                                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => openEditResult(r)} className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
+                                    <button onClick={() => openEditResult(r)}        className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
                                     <button onClick={() => confirmDeleteResult(r.id)} className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all">{Icon.trash}</button>
                                   </div>
                                 </td>
@@ -1339,37 +1936,69 @@ export default function Admindashboard() {
               </div>
             )}
 
-            {/* ANNOUNCEMENTS TAB */}
+
+            {/* ================================================
+                ANNOUNCEMENTS TAB
+                Cards for each posted announcement
+                ================================================ */}
             {activeTab === "announcements" && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
                     <h2 className="text-xl font-black text-slate-800">Announcements</h2>
-                    <p className="text-slate-400 text-sm mt-0.5">{announcements.length} announcement{announcements.length !== 1 ? "s" : ""}</p>
+                    <p className="text-slate-400 text-sm mt-0.5">
+                      {announcements.length} announcement{announcements.length !== 1 ? "s" : ""}
+                    </p>
                   </div>
-                  <PrimaryBtn onClick={openAddAnnouncement} gradient="from-amber-500 to-orange-500">{Icon.plus} New Announcement</PrimaryBtn>
+                  <PrimaryBtn onClick={openAddAnnouncement} gradient="from-amber-500 to-orange-500">
+                    {Icon.plus} New Announcement
+                  </PrimaryBtn>
                 </div>
-                {loadingMap.announcements ? <Spinner /> : announcements.length === 0 ? (
+
+                {loadingMap.announcements ? (
+                  <Spinner />
+                ) : announcements.length === 0 ? (
                   <div className="bg-white rounded-3xl border border-dashed border-slate-200 shadow-sm">
-                    <EmptyState icon={Icon.bell} title="No Announcements" subtitle="Post announcements to notify students."
-                      action={<PrimaryBtn onClick={openAddAnnouncement} gradient="from-amber-500 to-orange-500">{Icon.plus} Post First Announcement</PrimaryBtn>} />
+                    <EmptyState
+                      icon={Icon.bell}
+                      title="No Announcements"
+                      subtitle="Post announcements to notify students."
+                      action={
+                        <PrimaryBtn onClick={openAddAnnouncement} gradient="from-amber-500 to-orange-500">
+                          {Icon.plus} Post First Announcement
+                        </PrimaryBtn>
+                      }
+                    />
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
                     {announcements.map((a) => (
-                      <div key={a.id} className={`bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all p-5 ${a.priority === "urgent" ? "border-red-200" : a.priority === "important" ? "border-amber-200" : "border-slate-100"}`}>
+                      <div
+                        key={a.id}
+                        className={`
+                          bg-white rounded-3xl border shadow-sm hover:shadow-md transition-all p-5
+                          ${a.priority === "urgent"    ? "border-red-200"   : ""}
+                          ${a.priority === "important" ? "border-amber-200" : ""}
+                          ${!a.priority || a.priority === "normal" ? "border-slate-100" : ""}
+                        `}
+                      >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
+
+                            {/* Title + badges */}
                             <div className="flex items-center gap-2 flex-wrap mb-2">
                               <h3 className="font-black text-slate-800">{a.title}</h3>
                               <Badge color={priorityColor[a.priority] || "slate"}>{a.priority || "normal"}</Badge>
-                              <Badge color={targetColor[a.target] || "blue"}>{a.target || "all"}</Badge>
+                              <Badge color={targetColor[a.target]    || "blue"}> {a.target   || "all"}</Badge>
                             </div>
+
                             <p className="text-sm text-slate-500 leading-relaxed">{a.content}</p>
                             <p className="text-xs text-slate-400 mt-3 font-medium">{formatDate(a.created_at)}</p>
                           </div>
+
+                          {/* Edit & Delete */}
                           <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => openEditAnnouncement(a)} className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
+                            <button onClick={() => openEditAnnouncement(a)}        className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
                             <button onClick={() => confirmDeleteAnnouncement(a.id)} className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all">{Icon.trash}</button>
                           </div>
                         </div>
@@ -1380,52 +2009,92 @@ export default function Admindashboard() {
               </div>
             )}
 
-            {/* TIMETABLE TAB */}
+
+            {/* ================================================
+                TIMETABLE TAB
+                Classes grouped and sorted by day of the week
+                ================================================ */}
             {activeTab === "timetable" && (
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                   <div>
                     <h2 className="text-xl font-black text-slate-800">Manage Timetable</h2>
-                    <p className="text-slate-400 text-sm mt-0.5">{timetables.length} class session{timetables.length !== 1 ? "s" : ""} scheduled</p>
+                    <p className="text-slate-400 text-sm mt-0.5">
+                      {timetables.length} class session{timetables.length !== 1 ? "s" : ""} scheduled
+                    </p>
                   </div>
-                  <PrimaryBtn onClick={openAddTimetable} gradient="from-cyan-500 to-blue-600">{Icon.plus} Add Class</PrimaryBtn>
+                  <PrimaryBtn onClick={openAddTimetable} gradient="from-cyan-500 to-blue-600">
+                    {Icon.plus} Add Class
+                  </PrimaryBtn>
                 </div>
-                {loadingMap.timetables ? <Spinner /> : timetables.length === 0 ? (
+
+                {loadingMap.timetables ? (
+                  <Spinner />
+                ) : timetables.length === 0 ? (
                   <div className="bg-white rounded-3xl border border-dashed border-slate-200 shadow-sm">
-                    <EmptyState icon={Icon.calendar} title="No Classes Scheduled" subtitle="Build your timetable by adding class sessions."
-                      action={<PrimaryBtn onClick={openAddTimetable} gradient="from-cyan-500 to-blue-600">{Icon.plus} Add First Class</PrimaryBtn>} />
+                    <EmptyState
+                      icon={Icon.calendar}
+                      title="No Classes Scheduled"
+                      subtitle="Build your timetable by adding class sessions."
+                      action={
+                        <PrimaryBtn onClick={openAddTimetable} gradient="from-cyan-500 to-blue-600">
+                          {Icon.plus} Add First Class
+                        </PrimaryBtn>
+                      }
+                    />
                   </div>
                 ) : (
                   <div className="space-y-6">
+                    {/* Loop through each day and show its classes */}
                     {DAYS.map((day) => {
                       const dayEntries = timetables.filter((t) => t.day === day);
-                      if (dayEntries.length === 0) return null;
+                      if (dayEntries.length === 0) return null; // skip empty days
+
                       return (
                         <div key={day}>
+                          {/* Day header row */}
                           <div className="flex items-center gap-3 mb-3">
                             <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">{day}</h3>
                             <div className="flex-1 h-px bg-slate-200" />
-                            <span className="text-xs text-slate-400 font-semibold">{dayEntries.length} class{dayEntries.length !== 1 ? "es" : ""}</span>
+                            <span className="text-xs text-slate-400 font-semibold">
+                              {dayEntries.length} class{dayEntries.length !== 1 ? "es" : ""}
+                            </span>
                           </div>
+
+                          {/* Class cards sorted by start time */}
                           <div className="flex flex-col gap-3">
-                            {dayEntries.sort((a, b) => ((a.start_time || "") > (b.start_time || "") ? 1 : -1)).map((t) => (
-                              <div key={t.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-4 flex items-center gap-4 group">
-                                <div className="w-1.5 h-14 bg-gradient-to-b from-cyan-400 to-blue-600 rounded-full flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-black text-slate-800 truncate">{t.course_title || "Unknown Course"}</p>
-                                  <div className="flex flex-wrap items-center gap-2 mt-1">
-                                    {t.course_code && <Badge color="cyan">{t.course_code}</Badge>}
-                                    <span className="text-xs text-slate-400 font-semibold">{t.start_time}{t.end_time ? ` – ${t.end_time}` : ""}</span>
-                                    {t.venue && <span className="text-xs text-slate-500 font-medium">📍 {t.venue}</span>}
-                                    {t.lecturer && <span className="text-xs text-slate-500 font-medium">👤 {t.lecturer}</span>}
+                            {dayEntries
+                              .sort((a, b) => ((a.start_time || "") > (b.start_time || "") ? 1 : -1))
+                              .map((t) => (
+                                <div
+                                  key={t.id}
+                                  className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-4 flex items-center gap-4 group"
+                                >
+                                  {/* Colored left accent bar */}
+                                  <div className="w-1.5 h-14 bg-gradient-to-b from-cyan-400 to-blue-600 rounded-full flex-shrink-0" />
+
+                                  {/* Course info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-black text-slate-800 truncate">
+                                      {t.course_title || "Unknown Course"}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                      {t.course_code && <Badge color="cyan">{t.course_code}</Badge>}
+                                      <span className="text-xs text-slate-400 font-semibold">
+                                        {t.start_time}{t.end_time ? ` – ${t.end_time}` : ""}
+                                      </span>
+                                      {t.venue    && <span className="text-xs text-slate-500 font-medium">📍 {t.venue}</span>}
+                                      {t.lecturer && <span className="text-xs text-slate-500 font-medium">👤 {t.lecturer}</span>}
+                                    </div>
+                                  </div>
+
+                                  {/* Edit & Delete — visible on hover */}
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                    <button onClick={() => openEditTimetable(t)}        className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
+                                    <button onClick={() => confirmDeleteTimetable(t.id)} className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all">{Icon.trash}</button>
                                   </div>
                                 </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                  <button onClick={() => openEditTimetable(t)} className="p-2 rounded-xl text-blue-500 hover:bg-blue-50 transition-all">{Icon.edit}</button>
-                                  <button onClick={() => confirmDeleteTimetable(t.id)} className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-all">{Icon.trash}</button>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
                           </div>
                         </div>
                       );
@@ -1434,6 +2103,7 @@ export default function Admindashboard() {
                 )}
               </div>
             )}
+
 
           </main>
         </div>

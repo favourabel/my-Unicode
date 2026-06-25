@@ -1,36 +1,45 @@
+// ============================================================
+// FILE: Loginpage.jsx
+// DESCRIPTION: Unicode University — Secure Login Portal
+// SUPPORTS: Admin (via env vars) + Student (via Supabase auth)
+// FALLBACK: Admin can log in even when Supabase is down
+// ============================================================
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  GraduationCap,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  Shield,
-  BookOpen,
-  Users,
-  Award,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-  WifiOff,
+  GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight,
+  Shield, BookOpen, Users, Award, ChevronLeft, ChevronRight,
+  AlertCircle, CheckCircle, Loader2, WifiOff,
 } from "lucide-react";
 
-// ── Safely read env vars ──────────────────────────────────────────────────────
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase();
+
+
+
+/* ============================================================
+   SECTION 1 — CONFIG & CONSTANTS
+   ============================================================ */
+
+// Admin credentials — stored in .env for security
+const ADMIN_EMAIL    = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase();
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD?.trim();
 
-// Warn in dev if missing
+// Warn in development if env vars are missing
 if (import.meta.env.DEV) {
-  if (!ADMIN_EMAIL) console.warn("⚠️  VITE_ADMIN_EMAIL is not set in .env");
+  if (!ADMIN_EMAIL)    console.warn("⚠️  VITE_ADMIN_EMAIL is not set in .env");
   if (!ADMIN_PASSWORD) console.warn("⚠️  VITE_ADMIN_PASSWORD is not set in .env");
 }
 
+
+
+
+/* ============================================================
+   SECTION 2 — STATIC DATA
+   ============================================================ */
+
+// Feature carousel — rotates every 4 seconds
 const features = [
   {
     icon: BookOpen,
@@ -45,8 +54,7 @@ const features = [
   {
     icon: Users,
     title: "Student Community",
-    description:
-      "Connect with peers, join groups, and collaborate on projects.",
+    description: "Connect with peers, join groups, and collaborate on projects.",
   },
   {
     icon: Shield,
@@ -55,60 +63,91 @@ const features = [
   },
 ];
 
+// Stats shown at the bottom of the branding panel
 const stats = [
-  { value: "15K+", label: "Students" },
-  { value: "500+", label: "Courses" },
-  { value: "98%",  label: "Satisfaction" },
-  { value: "50+",  label: "Departments" },
+  { value: "15K+", label: "Students"      },
+  { value: "500+", label: "Courses"       },
+  { value: "98%",  label: "Satisfaction"  },
+  { value: "50+",  label: "Departments"   },
 ];
 
-// ── Helper: check if error is a network/timeout error ────────────────────────
+
+
+
+/* ============================================================
+   SECTION 3 — HELPER UTILITY
+   ============================================================ */
+
+/**
+ * Checks if an error is a network/connectivity issue.
+ * Used to decide when to use the local admin fallback login.
+ */
 function isNetworkError(error) {
   if (!error) return false;
   const msg = error.message?.toLowerCase() ?? "";
   return (
-    msg.includes("failed to fetch") ||
-    msg.includes("network") ||
-    msg.includes("timeout") ||
+    msg.includes("failed to fetch")  ||
+    msg.includes("network")          ||
+    msg.includes("timeout")          ||
     msg.includes("err_connection")
   );
 }
 
+
+
+
+/* ============================================================
+   SECTION 4 — MAIN LOGIN PAGE COMPONENT
+   ============================================================ */
 export default function Loginpage() {
+
   const navigate = useNavigate();
 
-  const [email, setEmail]               = useState("");
-  const [password, setPassword]         = useState("");
-  const [loading, setLoading]           = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]               = useState("");
-  const [success, setSuccess]           = useState("");
-  const [focusedField, setFocusedField] = useState(null);
-  const [currentFeature, setCurrentFeature] = useState(0);
-  const [mousePosition, setMousePosition]   = useState({ x: 0, y: 0 });
-  const [isOffline, setIsOffline]           = useState(!navigator.onLine);
 
-  // ── Detect online/offline ─────────────────────────────────────────────────
+  // ── 4A — FORM STATE ─────────────────────────────────────
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error,        setError]        = useState("");
+  const [success,      setSuccess]      = useState("");
+  const [focusedField, setFocusedField] = useState(null);
+
+
+  // ── 4B — UI STATE ───────────────────────────────────────
+  const [currentFeature, setCurrentFeature] = useState(0);
+  const [mousePosition,  setMousePosition]  = useState({ x: 0, y: 0 });
+  const [isOffline,      setIsOffline]      = useState(!navigator.onLine);
+
+
+
+
+  // ── 4C — ONLINE / OFFLINE DETECTION ─────────────────────
   useEffect(() => {
     const goOnline  = () => { setIsOffline(false); setError(""); };
     const goOffline = () => setIsOffline(true);
+
     window.addEventListener("online",  goOnline);
     window.addEventListener("offline", goOffline);
+
     return () => {
       window.removeEventListener("online",  goOnline);
       window.removeEventListener("offline", goOffline);
     };
   }, []);
 
-  // ── Auto-rotate features carousel ────────────────────────────────────────
+
+  // ── 4D — AUTO-ROTATE FEATURE CAROUSEL ──────────────────
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentFeature((prev) => (prev + 1) % features.length);
     }, 4000);
+
     return () => clearInterval(interval);
   }, []);
 
-  // ── Mouse parallax ────────────────────────────────────────────────────────
+
+  // ── 4E — MOUSE PARALLAX EFFECT ─────────────────────────
   useEffect(() => {
     const handleMouse = (e) => {
       setMousePosition({
@@ -116,29 +155,38 @@ export default function Loginpage() {
         y: (e.clientY / window.innerHeight - 0.5) * 20,
       });
     };
+
     window.addEventListener("mousemove", handleMouse);
     return () => window.removeEventListener("mousemove", handleMouse);
   }, []);
 
-  // ── redirectAfterLogin ────────────────────────────────────────────────────
+
+
+
+  // ── 4F — REDIRECT AFTER SUCCESSFUL LOGIN ───────────────
   const redirectAfterLogin = (role, userEmail) => {
     localStorage.setItem("user", JSON.stringify({ email: userEmail, role }));
+
     setSuccess(
       role === "admin"
         ? "Login successful! Redirecting to Admin Dashboard..."
         : "Login successful! Redirecting..."
     );
+
     setTimeout(() => navigate(role === "admin" ? "/admin" : "/dashboard"), 1200);
   };
 
-  // ── handleLogin ───────────────────────────────────────────────────────────
+
+
+
+  // ── 4G — HANDLE LOGIN SUBMIT ───────────────────────────
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
 
-    // ── ENV variable guard ──────────────────────────────────────────────────
+    // Guard: env vars not configured
     if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
       setError(
         "Server configuration error: admin credentials not set. Contact IT support."
@@ -147,7 +195,7 @@ export default function Loginpage() {
       return;
     }
 
-    // ── Offline guard ───────────────────────────────────────────────────────
+    // Guard: device is offline
     if (isOffline) {
       setError("You appear to be offline. Please check your internet connection.");
       setLoading(false);
@@ -157,26 +205,23 @@ export default function Loginpage() {
     const trimmedEmail    = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
 
-    // ── ADMIN local check (no network needed) ───────────────────────────────
-    // This lets admin log in even if Supabase auth fails, as long as the
-    // credentials match what's in .env
+    // Admin local check (no network needed if Supabase fails)
     const isAdminCredentials =
       trimmedEmail    === ADMIN_EMAIL &&
       trimmedPassword === ADMIN_PASSWORD;
 
     try {
-      // ── Attempt Supabase auth ─────────────────────────────────────────────
+      // Step 1: Attempt Supabase authentication
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email:    trimmedEmail,
         password: trimmedPassword,
       });
 
-      // ── Network / Supabase down fallback ──────────────────────────────────
+      // Step 2: Supabase is unreachable — fallback for admin
       if (authError && isNetworkError(authError)) {
         console.warn("⚠️  Supabase unreachable — using local credential check.");
 
         if (isAdminCredentials) {
-          // Admin can still log in via .env credentials
           redirectAfterLogin("admin", trimmedEmail);
           return;
         }
@@ -187,9 +232,8 @@ export default function Loginpage() {
         return;
       }
 
-      // ── Other Supabase errors (wrong password, user not found, etc.) ──────
+      // Step 3: Supabase returned a known auth error
       if (authError) {
-        // Map Supabase error messages to user-friendly text
         const friendlyErrors = {
           "Invalid login credentials":
             "Incorrect email or password. Please try again.",
@@ -198,6 +242,7 @@ export default function Loginpage() {
           "Too many requests":
             "Too many login attempts. Please wait a few minutes.",
         };
+
         setError(
           friendlyErrors[authError.message] ??
             authError.message ??
@@ -206,20 +251,22 @@ export default function Loginpage() {
         return;
       }
 
-      // ── Supabase auth succeeded ───────────────────────────────────────────
+      // Step 4: Supabase auth succeeded
       const user = data?.user;
+
       if (!user) {
         setError("Login failed: no user returned. Please try again.");
         return;
       }
 
-      // ── Determine role ────────────────────────────────────────────────────
+      // Determine role
       const userEmailNorm = user.email?.trim().toLowerCase();
       const role = userEmailNorm === ADMIN_EMAIL ? "admin" : "student";
+
       redirectAfterLogin(role, user.email);
 
     } catch (err) {
-      // ── Catch-all (unexpected JS errors) ─────────────────────────────────
+      // Catch-all: unexpected JavaScript errors
       console.error("❌ Unexpected login error:", err);
 
       if (isNetworkError(err)) {
@@ -238,19 +285,27 @@ export default function Loginpage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
+
+
+
+  /* ==========================================================
+     SECTION 4H — RENDER
+     ========================================================== */
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 font-sans overflow-hidden">
 
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* LEFT PANEL — UNIVERSITY BRANDING                                  */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
+
+
+      {/* ================================================
+          LEFT PANEL — University Branding
+          Only visible on desktop (lg screens and up)
+          ================================================ */}
       <div className="hidden lg:flex lg:w-[55%] relative flex-col justify-between overflow-hidden">
+
+        {/* Dark gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#040e1d] via-[#07162d] to-[#0c2340]" />
 
-        {/* Parallax orbs */}
+        {/* Parallax decorative orbs — follow mouse movement */}
         <motion.div
           animate={{ x: mousePosition.x, y: mousePosition.y }}
           transition={{ type: "spring", stiffness: 50, damping: 30 }}
@@ -261,7 +316,7 @@ export default function Loginpage() {
           <div className="absolute top-[40%] left-[30%] w-[300px] h-[300px] bg-cyan-400 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.04]" />
         </motion.div>
 
-        {/* Grid overlay */}
+        {/* Grid texture overlay */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -272,7 +327,7 @@ export default function Loginpage() {
           }}
         />
 
-        {/* Top bar */}
+        {/* ── Logo ── */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -290,19 +345,21 @@ export default function Loginpage() {
           </div>
         </motion.div>
 
-        {/* Center content */}
+        {/* ── Center content: headline + description ── */}
         <div className="relative z-10 flex-1 flex flex-col justify-center px-12 xl:px-20">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.8 }}
           >
+            {/* Animated accent line */}
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: 60 }}
               transition={{ delay: 0.6, duration: 0.6 }}
               className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mb-8"
             />
+
             <h1 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white leading-tight mb-6">
               Your Academic
               <br />
@@ -312,6 +369,7 @@ export default function Loginpage() {
               <br />
               Here.
             </h1>
+
             <p className="text-slate-400 text-lg max-w-lg leading-relaxed mb-10">
               Access course registration, results, timetables, and everything
               you need — all in one secure portal built for Unicode University
@@ -319,7 +377,7 @@ export default function Loginpage() {
             </p>
           </motion.div>
 
-          {/* Feature Carousel */}
+          {/* ── Feature Carousel ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -327,6 +385,8 @@ export default function Loginpage() {
             className="relative"
           >
             <div className="bg-white/[0.04] backdrop-blur-sm border border-white/[0.06] rounded-2xl p-6 max-w-lg">
+
+              {/* Animated feature card */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentFeature}
@@ -336,6 +396,7 @@ export default function Loginpage() {
                   transition={{ duration: 0.4 }}
                   className="flex items-start gap-4"
                 >
+                  {/* This inline IIFE is your original logic — kept exactly as-is */}
                   {(() => {
                     const Icon = features[currentFeature].icon;
                     return (
@@ -357,8 +418,10 @@ export default function Loginpage() {
                 </motion.div>
               </AnimatePresence>
 
-              {/* Carousel controls */}
+              {/* ── Carousel controls ── */}
               <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/[0.06]">
+
+                {/* Dot indicators */}
                 <div className="flex gap-1.5">
                   {features.map((_, i) => (
                     <button
@@ -372,6 +435,8 @@ export default function Loginpage() {
                     />
                   ))}
                 </div>
+
+                {/* Prev / Next arrows */}
                 <div className="flex gap-1">
                   <button
                     onClick={() =>
@@ -397,7 +462,7 @@ export default function Loginpage() {
           </motion.div>
         </div>
 
-        {/* Bottom stats */}
+        {/* ── Bottom stats row ── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -422,12 +487,17 @@ export default function Loginpage() {
         </motion.div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* RIGHT PANEL — LOGIN FORM                                          */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
+
+
+
+      {/* ================================================
+          RIGHT PANEL — Login Form
+          Full width on mobile, 45% on desktop
+          ================================================ */}
       <div className="w-full lg:w-[45%] flex flex-col min-h-screen lg:min-h-0">
 
-        {/* Mobile top branding */}
+
+        {/* ── Mobile branding header (hidden on desktop) ── */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -444,6 +514,7 @@ export default function Loginpage() {
               </p>
             </div>
           </div>
+
           <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
             Welcome Back,{" "}
             <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -455,7 +526,8 @@ export default function Loginpage() {
           </p>
         </motion.div>
 
-        {/* Form container */}
+
+        {/* ── Form container — centered vertically ── */}
         <div className="flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-16 xl:p-20 -mt-6 lg:mt-0">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -463,7 +535,8 @@ export default function Loginpage() {
             transition={{ delay: 0.3, duration: 0.7 }}
             className="w-full max-w-[420px]"
           >
-            {/* Desktop header */}
+
+            {/* Desktop header (hidden on mobile) */}
             <div className="hidden lg:block mb-10">
               <motion.h2
                 initial={{ opacity: 0, x: -20 }}
@@ -483,7 +556,8 @@ export default function Loginpage() {
               </motion.p>
             </div>
 
-            {/* ── Offline banner ── */}
+
+            {/* ── Offline Warning Banner ── */}
             <AnimatePresence>
               {isOffline && (
                 <motion.div
@@ -502,7 +576,8 @@ export default function Loginpage() {
               )}
             </AnimatePresence>
 
-            {/* ── Error message ── */}
+
+            {/* ── Error Message Banner ── */}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -515,7 +590,8 @@ export default function Loginpage() {
                     <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm text-red-600 font-medium">{error}</p>
-                      {/* Hint if it looks like a connection issue */}
+
+                      {/* Extra hint if it looks like a connection issue */}
                       {error.toLowerCase().includes("server") ||
                       error.toLowerCase().includes("connect") ? (
                         <p className="text-xs text-red-400 mt-1">
@@ -529,7 +605,8 @@ export default function Loginpage() {
               )}
             </AnimatePresence>
 
-            {/* ── Success message ── */}
+
+            {/* ── Success Message Banner ── */}
             <AnimatePresence>
               {success && (
                 <motion.div
@@ -546,10 +623,14 @@ export default function Loginpage() {
               )}
             </AnimatePresence>
 
-            {/* ── LOGIN FORM ── */}
+
+            {/* ══════════════════════════════════════════
+                LOGIN FORM
+                ═══════════════════════════════════════ */}
             <form onSubmit={handleLogin} className="space-y-5">
 
-              {/* Email */}
+
+              {/* ── Email Field ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -558,6 +639,7 @@ export default function Loginpage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   University Email
                 </label>
+
                 <div
                   className={`relative flex items-center rounded-xl border-2 transition-all duration-300 bg-white ${
                     focusedField === "email"
@@ -565,6 +647,7 @@ export default function Loginpage() {
                       : "border-slate-200 hover:border-slate-300"
                   }`}
                 >
+                  {/* Mail icon */}
                   <div className="pl-4 pr-1">
                     <Mail
                       size={18}
@@ -573,6 +656,7 @@ export default function Loginpage() {
                       }`}
                     />
                   </div>
+
                   <input
                     type="email"
                     placeholder="student@unicode.edu"
@@ -584,6 +668,8 @@ export default function Loginpage() {
                     autoComplete="email"
                     required
                   />
+
+                  {/* Green check when email looks valid */}
                   <AnimatePresence>
                     {email.includes("@") && email.includes(".") && (
                       <motion.div
@@ -599,7 +685,8 @@ export default function Loginpage() {
                 </div>
               </motion.div>
 
-              {/* Password */}
+
+              {/* ── Password Field ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -608,6 +695,7 @@ export default function Loginpage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Password
                 </label>
+
                 <div
                   className={`relative flex items-center rounded-xl border-2 transition-all duration-300 bg-white ${
                     focusedField === "password"
@@ -615,6 +703,7 @@ export default function Loginpage() {
                       : "border-slate-200 hover:border-slate-300"
                   }`}
                 >
+                  {/* Lock icon */}
                   <div className="pl-4 pr-1">
                     <Lock
                       size={18}
@@ -623,6 +712,7 @@ export default function Loginpage() {
                       }`}
                     />
                   </div>
+
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
@@ -634,6 +724,8 @@ export default function Loginpage() {
                     autoComplete="current-password"
                     required
                   />
+
+                  {/* Show / Hide password toggle */}
                   <button
                     type="button"
                     onClick={() => setShowPassword((s) => !s)}
@@ -646,7 +738,8 @@ export default function Loginpage() {
                 </div>
               </motion.div>
 
-              {/* Forgot password */}
+
+              {/* ── Forgot Password Link ── */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -661,7 +754,8 @@ export default function Loginpage() {
                 </button>
               </motion.div>
 
-              {/* Submit button */}
+
+              {/* ── Submit Button ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -685,7 +779,7 @@ export default function Loginpage() {
                     }
                   `}
                 >
-                  {/* Shine effect */}
+                  {/* Animated shine effect — only when idle */}
                   {!loading && !success && (
                     <motion.div
                       className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent"
@@ -716,7 +810,8 @@ export default function Loginpage() {
               </motion.div>
             </form>
 
-            {/* Divider */}
+
+            {/* ── IT Support Link ── */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -731,7 +826,8 @@ export default function Loginpage() {
               </p>
             </motion.div>
 
-            {/* Security badge */}
+
+            {/* ── SSL Security Badge ── */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -741,10 +837,12 @@ export default function Loginpage() {
               <Shield size={14} />
               <span className="text-xs">256-bit SSL encrypted connection</span>
             </motion.div>
+
           </motion.div>
         </div>
 
-        {/* Mobile bottom stats */}
+
+        {/* ── Mobile bottom stats row ── */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

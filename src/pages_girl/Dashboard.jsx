@@ -1,14 +1,24 @@
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
-import { motion, AnimatePresence, useInView } from "framer-motion";
-import toast, { Toaster } from "react-hot-toast";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// ============================================================
+// FILE: Dashboard.jsx
+// DESCRIPTION: Unicode University — Student Dashboard
+// ACCESS: Authenticated students only
+// ============================================================
+
+import { useEffect, useState, useMemo, useRef }    from "react";
+import { useNavigate }                               from "react-router-dom";
+import { supabase }                                  from "../supabaseClient";
+import { motion, AnimatePresence, useInView }        from "framer-motion";
+import toast, { Toaster }                            from "react-hot-toast";
+import jsPDF                                         from "jspdf";
+import autoTable                                     from "jspdf-autotable";
+
+// Recharts — for charts
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+
+// Lucide icons — all icons used across the dashboard
 import {
   LayoutDashboard, User, BookOpen, GraduationCap, Calendar, Bell,
   Award, Settings, LogOut, Wallet, Menu, Moon, Sun, Search, X,
@@ -17,34 +27,289 @@ import {
   Hash, Building2, Layers, BookMarked, ChevronRight, Shield, Globe,
 } from "lucide-react";
 
+
+
+
+/* ============================================================
+   SECTION 1 — CONSTANTS
+   Values used across the whole dashboard
+   ============================================================ */
+
+// Days of the week — used to group timetable entries
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+// How many registered courses to show per page in the table
+const PER_PAGE = 5;
+
+
+
+
+/* ============================================================
+   SECTION 2 — COLOR UTILITIES
+   Pure functions that map a value to Tailwind classes
+   ============================================================ */
+
+/**
+ * Returns Tailwind classes for a grade badge.
+ * @param {string} grade - e.g. "A", "B", "C", "D", "F"
+ */
+function gradeColor(grade) {
+  const map = {
+    A: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+    B: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
+    C: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+    D: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400",
+    F: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
+  };
+  return map[(grade || "").charAt(0).toUpperCase()] || "bg-slate-100 text-slate-600";
+}
+
+
+/**
+ * Returns Tailwind classes for an announcement badge.
+ * Supports both "priority" and legacy "type" fields.
+ */
+function announcementBadgeColor(type) {
+  const map = {
+    Exam:         "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
+    Registration: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
+    Scholarship:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+    School:       "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400",
+    Department:   "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400",
+    urgent:       "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
+    important:    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+    normal:       "bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400",
+  };
+  return map[type] || "bg-slate-100 text-slate-600";
+}
+
+
+
+
+/* ============================================================
+   SECTION 3 — SMALL REUSABLE UI COMPONENTS
+   These building blocks are used all over the dashboard
+   ============================================================ */
+
+/**
+ * AnimatedCounter — counts up from 0 to the target value.
+ * Re-animates when it scrolls into view (once).
+ */
+function Counter({ value = 0, decimals = 0, suffix = "" }) {
+  const ref      = useRef(null);
+  const inView   = useInView(ref, { once: true });
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+
+    const end       = parseFloat(value) || 0;
+    const startTime = Date.now();
+
+    const animate = () => {
+      const now      = Date.now();
+      const progress = Math.min((now - startTime) / 1200, 1);   // 1.2s duration
+      const eased    = 1 - Math.pow(1 - progress, 3);          // cubic ease-out
+      setDisplay(end * eased);
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+
+    requestAnimationFrame(animate);
+  }, [inView, value]);
+
+  return (
+    <span ref={ref}>
+      {display.toFixed(decimals)}{suffix}
+    </span>
+  );
+}
+
+
+/**
+ * EmptyState — shown when a tab has no data (e.g. no results, no courses).
+ */
+function EmptyState({ icon: Icon = Inbox, title, subtitle }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center mb-4">
+        <Icon className="text-slate-400" size={28} />
+      </div>
+      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
+      <p className="text-sm text-slate-400 mt-1">{subtitle}</p>
+    </div>
+  );
+}
+
+
+/**
+ * SectionHeader — small label pill used at the top of dashboard sections
+ * (e.g. "Quick Services", "Academic Information").
+ */
+function SectionHeader({ icon: Icon, label, color = "blue" }) {
+  const colors = {
+    blue:   "text-blue-500 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20",
+    indigo: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20",
+  };
+
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest ${colors[color]}`}>
+        <Icon size={12} />
+        <span>{label}</span>
+      </div>
+
+      {/* Horizontal divider line */}
+      <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
+    </div>
+  );
+}
+
+
+
+
+/* ============================================================
+   SECTION 4 — SKELETON LOADER
+   Shown while the user profile is being fetched
+   ============================================================ */
+function LoadingSkeleton() {
+  return (
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
+
+      {/* Sidebar skeleton */}
+      <div className="hidden md:flex w-64 bg-gradient-to-b from-[#040e1d] to-[#0c2340] flex-col p-6 gap-4">
+        <div className="h-12 rounded-2xl bg-white/10 animate-pulse mb-4" />
+
+        {/* 7 fake nav items pulsing */}
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className="h-10 rounded-xl bg-white/5 animate-pulse" />
+        ))}
+      </div>
+
+      {/* Main content skeleton */}
+      <div className="flex-1 p-8 space-y-6">
+        {/* Hero banner placeholder */}
+        <div className="h-40 rounded-3xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
+
+        {/* Stat card placeholders */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 animate-pulse"
+            >
+              <div className="h-4 w-20 mb-4 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-8 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+/* ============================================================
+   SECTION 5 — STATIC DATA
+   Arrays that never change during the component lifecycle
+   ============================================================ */
+
+// Services grid shown on the dashboard home (clicking jumps to another tab)
+const SERVICES = [
+  { icon: BookOpen,    label: "Course Registration", target: "courses",    gradient: "from-blue-500 to-indigo-600"   },
+  { icon: Award,       label: "Results",             target: "results",    gradient: "from-purple-500 to-fuchsia-600" },
+  { icon: Wallet,      label: "Fees",                target: "fees",       gradient: "from-emerald-500 to-teal-600"   },
+  { icon: Library,     label: "Library",             target: "dashboard",  gradient: "from-amber-500 to-orange-600"   },
+  { icon: Calendar,    label: "Academic Calendar",   target: "timetable",  gradient: "from-pink-500 to-rose-600"      },
+  { icon: Headphones,  label: "Student Support",     target: "dashboard",  gradient: "from-cyan-500 to-blue-600"      },
+];
+
+// Sidebar navigation items — drives the sidebar menu and tab switching
+const NAV_ITEMS = [
+  { id: "dashboard",     label: "Dashboard",           icon: LayoutDashboard },
+  { id: "courses",       label: "Course Registration", icon: BookOpen        },
+  { id: "registered",    label: "My Courses",          icon: GraduationCap   },
+  { id: "performance",   label: "Performance",         icon: Activity        },
+  { id: "results",       label: "Results",             icon: Award           },
+  { id: "timetable",     label: "Timetable",           icon: Calendar        },
+  { id: "announcements", label: "Announcements",       icon: Bell            },
+  { id: "profile",       label: "Profile",             icon: User            },
+  { id: "settings",      label: "Settings",            icon: Settings        },
+];
+
+// Academic detail fields shown in the hero banner and profile page
+const ACADEMIC_DETAILS = [
+  { icon: Hash,       label: "Matric Number", key: "MatricNumber", color: "blue"   },
+  { icon: Building2,  label: "Department",    key: "Department",   color: "indigo" },
+  { icon: Layers,     label: "Level",         key: "Level",        color: "violet" },
+  { icon: BookMarked, label: "Semester",      key: "Session",      color: "cyan"   },
+];
+
+// Color palette for academic detail items in the hero banner
+const ACADEMIC_COLORS = {
+  blue:   { bg: "bg-blue-500/10",   icon: "text-blue-400",   badge: "bg-blue-500/20 text-blue-300 border border-blue-500/20"   },
+  indigo: { bg: "bg-indigo-500/10", icon: "text-indigo-400", badge: "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" },
+  violet: { bg: "bg-violet-500/10", icon: "text-violet-400", badge: "bg-violet-500/20 text-violet-300 border border-violet-500/20" },
+  cyan:   { bg: "bg-cyan-500/10",   icon: "text-cyan-400",   badge: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/20"   },
+};
+
+// Profile color palette — used on the Profile tab
+const PROFILE_COLORS = {
+  blue:   { bg: "bg-blue-50 dark:bg-blue-500/10",     icon: "text-blue-500",   badge: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300"     },
+  indigo: { bg: "bg-indigo-50 dark:bg-indigo-500/10", icon: "text-indigo-500", badge: "bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300" },
+  violet: { bg: "bg-violet-50 dark:bg-violet-500/10", icon: "text-violet-500", badge: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
+  cyan:   { bg: "bg-cyan-50 dark:bg-cyan-500/10",     icon: "text-cyan-600",   badge: "bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300"     },
+};
+
+
+
+
+/* ============================================================
+   SECTION 6 — MAIN DASHBOARD COMPONENT
+   All state, data fetching, business logic, and UI live here
+   ============================================================ */
 export default function Dashboard() {
-  const [user, setUser] = useState(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [active, setActive] = useState("dashboard");
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
-
-  const [allCourses, setAllCourses] = useState([]);
-  const [registered, setRegistered] = useState([]);
-  const [results, setResults] = useState([]);
-  const [performanceData, setPerformanceData] = useState([]);
-  const [timetableRows, setTimetableRows] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
-
-  const [confirmCourse, setConfirmCourse] = useState(null);
-  const [courseQuery, setCourseQuery] = useState("");
-  const [semesterFilter, setSemesterFilter] = useState("all");
-  const [actionLoading, setActionLoading] = useState(false);
-
-  const [regQuery, setRegQuery] = useState("");
-  const [sortKey, setSortKey] = useState("CourseCode");
-  const [page, setPage] = useState(1);
-  const perPage = 5;
 
   const navigate = useNavigate();
 
-  // ── THEME ──
+
+  // ── 6A — STATE ──────────────────────────────────────────
+
+  // User profile from Supabase
+  const [user, setUser] = useState(null);
+
+  // UI toggles
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isMenuOpen,     setIsMenuOpen]       = useState(false);
+  const [activeTab,      setActiveTab]        = useState("dashboard");
+  const [theme,          setTheme]            = useState(() => localStorage.getItem("theme") || "light");
+
+  // All data fetched from Supabase
+  const [allCourses,     setAllCourses]     = useState([]);
+  const [registered,     setRegistered]     = useState([]);
+  const [results,        setResults]        = useState([]);
+  const [performance,    setPerformance]    = useState([]);
+  const [timetable,      setTimetable]      = useState([]);
+  const [announcements,  setAnnouncements]  = useState([]);
+  const [dataLoading,    setDataLoading]    = useState(true);
+
+  // Interactive state
+  const [confirmCourse,  setConfirmCourse]  = useState(null);  // course object awaiting confirmation
+  const [courseQuery,    setCourseQuery]    = useState("");     // search box for course registration
+  const [semesterFilter, setSemesterFilter] = useState("all");  // dropdown filter
+  const [actionLoading,  setActionLoading]  = useState(false);  // disable button during API call
+
+  // Table state for "My Courses"
+  const [regQuery,  setRegQuery]  = useState("");
+  const [sortKey,   setSortKey]   = useState("CourseCode");
+  const [page,      setPage]      = useState(1);
+
+
+
+
+  // ── 6B — THEME PERSISTENCE ──────────────────────────────
+  // Adds or removes "dark" class on <html> tag
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") root.classList.add("dark");
@@ -52,11 +317,19 @@ export default function Dashboard() {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // ── AUTH + PROFILE ──
+
+
+
+  // ── 6C — AUTHENTICATION + PROFILE FETCH ─────────────────
+  // Runs once on mount. Redirects if not logged in.
   useEffect(() => {
     const loadUser = async () => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) { navigate("/login"); return; }
+
+      if (sessionError || !session) {
+        navigate("/login");
+        return;
+      }
 
       const email = session.user.email;
       const { data, error } = await supabase
@@ -70,349 +343,341 @@ export default function Dashboard() {
         navigate("/login");
         return;
       }
+
       setUser(data);
     };
 
     loadUser();
 
+    // Listen for real-time auth state changes (sign out, etc.)
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) navigate("/login");
     });
+
     return () => listener.subscription.unsubscribe();
   }, [navigate]);
 
-  // ── LOGOUT ──
+
+
+
+  // ── 6D — LOGOUT ─────────────────────────────────────────
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setShowLogoutModal(false);
     navigate("/login");
   };
 
-  // ── FETCH DATA ──
+
+
+
+  // ── 6E — FETCH ALL DATA ────────────────────────────────
+  // Runs once we have a user email
   useEffect(() => {
     if (!user?.Email) return;
+
     const fetchAllData = async () => {
       setDataLoading(true);
+
       try {
+
+        // 1. Courses catalog
         const coursesRes = await supabase.from("courses").select("*");
         if (!coursesRes.error) setAllCourses(coursesRes.data || []);
 
+        // 2. My registered courses
         const registeredRes = await supabase
-          .from("registered_courses").select("*").eq("StudentEmail", user.Email);
+          .from("registered_courses")
+          .select("*")
+          .eq("StudentEmail", user.Email);
         if (!registeredRes.error) setRegistered(registeredRes.data || []);
 
-        // ✅ FIXED: email column is lowercase
+        // 3. My results (admin saves email as lowercase "email")
         const resultsRes = await supabase
-          .from("results").select("*").eq("email", user.Email);
+          .from("results")
+          .select("*")
+          .eq("email", user.Email);
         if (!resultsRes.error) setResults(resultsRes.data || []);
 
-        // ✅ FIXED: email column is lowercase
+        // 4. My performance history (admin saves email as lowercase "email")
         const performanceRes = await supabase
-          .from("performance").select("*").eq("email", user.Email);
-        if (!performanceRes.error) setPerformanceData(performanceRes.data || []);
+          .from("performance")
+          .select("*")
+          .eq("email", user.Email);
+        if (!performanceRes.error) setPerformance(performanceRes.data || []);
 
-        // ✅ No email filter — timetable is for everyone
-        const timetableRes = await supabase
-          .from("timetable").select("*");
-        if (!timetableRes.error) setTimetableRows(timetableRes.data || []);
+        // 5. Timetable — all students
+        const timetableRes = await supabase.from("timetable").select("*");
+        if (!timetableRes.error) setTimetable(timetableRes.data || []);
 
+        // 6. Announcements — newest first
         const announcementsRes = await supabase
-          .from("announcements").select("*").order("created_at", { ascending: false });
+          .from("announcements")
+          .select("*")
+          .order("created_at", { ascending: false });
         if (!announcementsRes.error) setAnnouncements(announcementsRes.data || []);
 
-      } catch (err) {
+      } catch {
         toast.error("Failed to load dashboard data");
       } finally {
         setDataLoading(false);
       }
     };
+
     fetchAllData();
   }, [user]);
 
-  // ── DERIVED DATA ──
-  const totalUnits = registered.reduce((s, c) => s + (Number(c.Units) || Number(c.units) || 0), 0);
 
-  // ✅ FIXED: lowercase cgpa to match performance table columns
-  const currentCGPA = performanceData.length
-    ? Number(performanceData[performanceData.length - 1]?.cgpa) || 0 : 0;
 
+
+  // ── 6F — DERIVED (COMPUTED) VALUES ──────────────────────
+
+  // Total credit units from registered courses
+  const totalUnits = registered.reduce(
+    (sum, c) => sum + (Number(c.Units) || Number(c.units) || 0), 0
+  );
+
+  // Current CGPA — the last entry in the performance array
+  const currentCGPA = performance.length
+    ? Number(performance[performance.length - 1]?.cgpa) || 0
+    : 0;
+
+  // How many courses have been passed (grade is not F)
   const completedCount = results.filter(
     (r) => (r.grade || "").charAt(0).toUpperCase() !== "F"
   ).length;
 
-  // ✅ FIXED: lowercase semester, cgpa, gpa to match performance table columns
-  const cgpaTrend = performanceData.map((p) => ({
+  // Chart data — CGPA over time
+  const cgpaTrend = performance.map((p) => ({
     semester: p.semester,
-    cgpa: Number(p.cgpa) || 0,
+    cgpa:     Number(p.cgpa) || 0,
   }));
 
-  const semesterChartData = performanceData.map((p) => ({
+  // Chart data — GPA per semester
+  const semesterGPA = performance.map((p) => ({
     semester: p.semester,
-    gpa: Number(p.gpa) || 0,
+    gpa:      Number(p.gpa) || 0,
   }));
 
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  // Group timetable rows by day of the week
   const schedule = useMemo(() => {
     const grouped = {};
-    days.forEach((d) => (grouped[d] = []));
-    timetableRows.forEach((row) => {
-      // ✅ FIXED: admin saves as "day" (lowercase)
+    DAYS.forEach((d) => (grouped[d] = []));
+
+    timetable.forEach((row) => {
+      // Admin may save as "day" (lowercase) or "Day"
       const day = row.day || row.Day;
       if (grouped[day]) grouped[day].push(row);
     });
-    return grouped;
-  }, [timetableRows]);
 
+    return grouped;
+  }, [timetable]);
+
+  // Stat card values
   const stats = {
-    cgpa: currentCGPA,
+    cgpa:       currentCGPA,
     registered: registered.length,
-    completed: completedCount,
-    pending: registered.length,
+    completed:  completedCount,
+    pending:    registered.length,
     attendance: Number(user?.Attendance) || 0,
-    fees: Number(user?.OutstandingFees) || 0,
+    fees:       Number(user?.OutstandingFees) || 0,
   };
 
-  const isRegistered = (courseCode) =>
+  // Check if a course is already registered by matching code (case insensitive)
+  const isCourseRegistered = (code) =>
     registered.some(
       (r) => (r.CourseCode || r.code || r.Code || "").toLowerCase() ===
-        (courseCode || "").toLowerCase()
+             (code || "").toLowerCase()
     );
 
+
+
+
+  // ── 6G — COURSE REGISTRATION LOGIC ──────────────────────
+
+  // Register a course — validates, inserts, and updates state
   const handleRegister = async (course) => {
-    const courseCode = course.CourseCode || course.code || course.Code;
-    if (isRegistered(courseCode)) {
+    const code = course.CourseCode || course.code || course.Code;
+
+    if (isCourseRegistered(code)) {
       toast.error("Course already registered");
       setConfirmCourse(null);
       return;
     }
+
     setActionLoading(true);
-    const newRow = {
+
+    const payload = {
       StudentEmail: user.Email,
-      CourseCode: courseCode,
-      CourseTitle: course.CourseTitle || course.title || course.Title,
-      Units: course.Units || course.units || course.credits,
-      Semester: course.Semester || course.semester,
-      Lecturer: course.Lecturer || course.lecturer,
-      Status: "Registered",
+      CourseCode:   code,
+      CourseTitle:  course.CourseTitle || course.title || course.Title,
+      Units:        course.Units || course.units || course.credits,
+      Semester:     course.Semester || course.semester,
+      Lecturer:     course.Lecturer || course.lecturer,
+      Status:       "Registered",
     };
+
     const { data, error } = await supabase
-      .from("registered_courses").insert([newRow]).select().single();
+      .from("registered_courses")
+      .insert([payload])
+      .select()
+      .single();
+
     setActionLoading(false);
     setConfirmCourse(null);
-    if (error) { toast.error("Failed to register: " + error.message); return; }
-    setRegistered((p) => [...p, data]);
-    toast.success(`${courseCode} registered successfully!`);
+
+    if (error) {
+      toast.error("Failed to register: " + error.message);
+      return;
+    }
+
+    // Add the newly returned row to local state
+    setRegistered((prev) => [...prev, data]);
+    toast.success(`${code} registered successfully!`);
   };
 
-  const handleDrop = async (courseCode) => {
+
+  // Drop a course — deletes from Supabase and removes from state
+  const handleDrop = async (code) => {
     setActionLoading(true);
+
     const { error } = await supabase
-      .from("registered_courses").delete()
-      .eq("StudentEmail", user.Email).eq("CourseCode", courseCode);
+      .from("registered_courses")
+      .delete()
+      .eq("StudentEmail", user.Email)
+      .eq("CourseCode", code);
+
     setActionLoading(false);
-    if (error) { toast.error("Failed to drop: " + error.message); return; }
-    setRegistered((p) =>
-      p.filter((c) => (c.CourseCode || c.code || "").toLowerCase() !== courseCode.toLowerCase())
+
+    if (error) {
+      toast.error("Failed to drop: " + error.message);
+      return;
+    }
+
+    // Remove locally — case insensitive match
+    setRegistered((prev) =>
+      prev.filter(
+        (c) => (c.CourseCode || c.code || "").toLowerCase() !== code.toLowerCase()
+      )
     );
-    toast.success(`${courseCode} dropped successfully!`);
+    toast.success(`${code} dropped successfully!`);
   };
 
+
+
+
+  // ── 6H — FILTERED / SORTED DATA ────────────────────────
+
+  // All courses filtered by search query and semester dropdown
   const filteredCourses = useMemo(() => {
     return allCourses.filter((c) => {
-      // ✅ FIXED: admin saves as "code" and "title" (lowercase)
-      const code = c.code || c.CourseCode || c.Code || "";
-      const title = c.title || c.CourseTitle || c.Title || "";
+      // Admin can save as "code" / "title" (lowercase) or legacy PascalCase
+      const code     = c.code || c.CourseCode || c.Code || "";
+      const title    = c.title || c.CourseTitle || c.Title || "";
       const semester = c.semester || c.Semester || "";
-      const matchSem = semesterFilter === "all" || semester === semesterFilter;
-      const matchQuery =
+
+      const matchesSemester = semesterFilter === "all" || semester === semesterFilter;
+      const matchesQuery    =
         code.toLowerCase().includes(courseQuery.toLowerCase()) ||
         title.toLowerCase().includes(courseQuery.toLowerCase());
-      return matchSem && matchQuery;
+
+      return matchesSemester && matchesQuery;
     });
   }, [allCourses, courseQuery, semesterFilter]);
 
+
+  // My registered courses — filtered by search, sorted, then paginated
   const processedRegistered = useMemo(() => {
+    // 1. Filter
     let data = registered.filter((c) => {
-      const code = c.CourseCode || c.code || "";
+      const code  = c.CourseCode || c.code || "";
       const title = c.CourseTitle || c.title || "";
       return (
         code.toLowerCase().includes(regQuery.toLowerCase()) ||
         title.toLowerCase().includes(regQuery.toLowerCase())
       );
     });
+
+    // 2. Sort
     data.sort((a, b) => {
       const aVal = a[sortKey] || "";
       const bVal = b[sortKey] || "";
       return aVal > bVal ? 1 : -1;
     });
+
     return data;
   }, [registered, regQuery, sortKey]);
 
-  const totalPages = Math.ceil(processedRegistered.length / perPage);
-  const pagedRegistered = processedRegistered.slice((page - 1) * perPage, page * perPage);
 
+  // 3. Paginate — only pass 5 rows to the table at a time
+  const totalPages    = Math.ceil(processedRegistered.length / PER_PAGE);
+  const pagedRegistered = processedRegistered.slice(
+    (page - 1) * PER_PAGE,
+    page * PER_PAGE
+  );
+
+
+
+
+  // ── 6I — PDF EXPORT ─────────────────────────────────────
+  // Generates a PDF of all registered courses
   const exportPDF = () => {
     const doc = new jsPDF();
     doc.text("Registered Courses", 14, 16);
+
     autoTable(doc, {
       startY: 22,
       head: [["Code", "Title", "Units", "Semester", "Lecturer", "Status"]],
       body: processedRegistered.map((c) => [
-        c.CourseCode || c.code, c.CourseTitle || c.title,
-        c.Units || c.units, c.Semester || c.semester,
-        c.Lecturer || c.lecturer, c.Status || c.status || "Registered",
+        c.CourseCode || c.code,
+        c.CourseTitle || c.title,
+        c.Units || c.units,
+        c.Semester || c.semester,
+        c.Lecturer || c.lecturer,
+        c.Status || c.status || "Registered",
       ]),
     });
+
     doc.save("registered-courses.pdf");
   };
 
-  const gradeColor = (grade) => {
-    const map = {
-      A: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
-      B: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
-      C: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
-      D: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400",
-      F: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
-    };
-    return map[(grade || "").charAt(0).toUpperCase()] || "bg-slate-100 text-slate-600";
-  };
 
-  const announcementColor = (type) => {
-    const map = {
-      Exam: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
-      Registration: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
-      Scholarship: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
-      School: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400",
-      Department: "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400",
-      urgent: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
-      important: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
-      normal: "bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-400",
-    };
-    return map[type] || "bg-slate-100 text-slate-600";
-  };
 
-  const services = [
-    { icon: BookOpen, label: "Course Registration", target: "courses", gradient: "from-blue-500 to-indigo-600" },
-    { icon: Award, label: "Results", target: "results", gradient: "from-purple-500 to-fuchsia-600" },
-    { icon: Wallet, label: "Fees", target: "fees", gradient: "from-emerald-500 to-teal-600" },
-    { icon: Library, label: "Library", target: "dashboard", gradient: "from-amber-500 to-orange-600" },
-    { icon: Calendar, label: "Academic Calendar", target: "timetable", gradient: "from-pink-500 to-rose-600" },
-    { icon: Headphones, label: "Student Support", target: "dashboard", gradient: "from-cyan-500 to-blue-600" },
-  ];
 
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "courses", label: "Course Registration", icon: BookOpen },
-    { id: "registered", label: "My Courses", icon: GraduationCap },
-    { id: "performance", label: "Performance", icon: Activity },
-    { id: "results", label: "Results", icon: Award },
-    { id: "timetable", label: "Timetable", icon: Calendar },
-    { id: "announcements", label: "Announcements", icon: Bell },
-    { id: "profile", label: "Profile", icon: User },
-    { id: "settings", label: "Settings", icon: Settings },
-  ];
-
-  // ── ANIMATED COUNTER ──
-  const Counter = ({ value = 0, decimals = 0, suffix = "" }) => {
-    const ref = useRef(null);
-    const inView = useInView(ref, { once: true });
-    const [display, setDisplay] = useState(0);
-    useEffect(() => {
-      if (!inView) return;
-      const end = parseFloat(value) || 0;
-      const startTime = Date.now();
-      const animate = () => {
-        const now = Date.now();
-        const progress = Math.min((now - startTime) / 1200, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setDisplay(end * eased);
-        if (progress < 1) requestAnimationFrame(animate);
-      };
-      requestAnimationFrame(animate);
-    }, [inView, value]);
-    return <span ref={ref}>{display.toFixed(decimals)}{suffix}</span>;
-  };
-
-  const EmptyState = ({ icon: Icon = Inbox, title, subtitle }) => (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center mb-4">
-        <Icon className="text-slate-400" size={28} />
-      </div>
-      <h3 className="font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
-      <p className="text-sm text-slate-400 mt-1">{subtitle}</p>
-    </div>
-  );
-
-  // ── SECTION HEADER ──
-  const SectionHeader = ({ icon: Icon, label, color = "blue" }) => {
-    const colors = {
-      blue: "text-blue-500 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20",
-      indigo: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20",
-    };
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest ${colors[color]}`}>
-          <Icon size={12} />
-          <span>{label}</span>
-        </div>
-        <div className="flex-1 h-px bg-slate-100 dark:bg-slate-700" />
-      </div>
-    );
-  };
-
-  // ── SKELETON ──
-  if (!user) {
-    return (
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
-        <div className="hidden md:flex w-64 bg-gradient-to-b from-[#040e1d] to-[#0c2340] flex-col p-6 gap-4">
-          <div className="h-12 rounded-2xl bg-white/10 animate-pulse mb-4" />
-          {[...Array(7)].map((_, i) => (
-            <div key={i} className="h-10 rounded-xl bg-white/5 animate-pulse" />
-          ))}
-        </div>
-        <div className="flex-1 p-8 space-y-6">
-          <div className="h-40 rounded-3xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 animate-pulse">
-                <div className="h-4 w-20 mb-4 rounded bg-slate-200 dark:bg-slate-700" />
-                <div className="h-8 w-28 rounded bg-slate-200 dark:bg-slate-700" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // ── 6J — STAT CARD DEFINITIONS ──────────────────────────
+  // Runs once when user data changes
   const statCards = [
-    { icon: Award, label: "CGPA", value: stats.cgpa, decimals: 2, gradient: "from-blue-500 to-indigo-600" },
-    { icon: BookOpen, label: "Registered", value: stats.registered, gradient: "from-purple-500 to-fuchsia-600" },
-    { icon: CheckCircle, label: "Completed", value: stats.completed, gradient: "from-emerald-500 to-teal-600" },
-    { icon: Clock, label: "Pending", value: stats.pending, gradient: "from-amber-500 to-orange-600" },
-    { icon: Activity, label: "Attendance", value: stats.attendance, suffix: "%", gradient: "from-pink-500 to-rose-600" },
-    { icon: Wallet, label: "Outstanding (₦)", value: stats.fees, gradient: "from-red-500 to-rose-600" },
+    { icon: Award,       label: "CGPA",            value: stats.cgpa,       decimals: 2,    gradient: "from-blue-500 to-indigo-600"   },
+    { icon: BookOpen,    label: "Registered",      value: stats.registered,                  gradient: "from-purple-500 to-fuchsia-600" },
+    { icon: CheckCircle, label: "Completed",       value: stats.completed,                   gradient: "from-emerald-500 to-teal-600"   },
+    { icon: Clock,       label: "Pending",         value: stats.pending,                     gradient: "from-amber-500 to-orange-600"   },
+    { icon: Activity,    label: "Attendance",      value: stats.attendance, suffix: "%",     gradient: "from-pink-500 to-rose-600"      },
+    { icon: Wallet,      label: "Outstanding (₦)", value: stats.fees,                        gradient: "from-red-500 to-rose-600"       },
   ];
 
-  const academicItems = [
-    { icon: Hash, label: "Matric Number", value: user.MatricNumber, color: "blue" },
-    { icon: Building2, label: "Department", value: user.Department, color: "indigo" },
-    { icon: Layers, label: "Level", value: user.Level ? `${user.Level} Level` : null, color: "violet" },
-    { icon: BookMarked, label: "Semester", value: user.Session, color: "cyan" },
-  ];
 
-  const academicColorMap = {
-    blue:   { bg: "bg-blue-500/10",   icon: "text-blue-400",   badge: "bg-blue-500/20 text-blue-300 border border-blue-500/20"   },
-    indigo: { bg: "bg-indigo-500/10", icon: "text-indigo-400", badge: "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" },
-    violet: { bg: "bg-violet-500/10", icon: "text-violet-400", badge: "bg-violet-500/20 text-violet-300 border border-violet-500/20" },
-    cyan:   { bg: "bg-cyan-500/10",   icon: "text-cyan-400",   badge: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/20"   },
-  };
 
+
+  // ── 6K — RENDER ────────────────────────────────────────
+
+  // If user hasn't loaded yet, show the skeleton loader
+  if (!user) return <LoadingSkeleton />;
+
+
+  // Otherwise, render the full dashboard
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-sans">
+
+      {/* Toast notifications — top-right corner */}
       <Toaster position="top-right" />
 
-      {/* ════════ SIDEBAR ════════ */}
+
+
+
+      {/* ================================================
+          SIDEBAR — fixed left panel with navigation links
+          ================================================ */}
+
+      {/* Mobile backdrop — closes sidebar when tapped */}
       {isMenuOpen && (
         <div
           onClick={() => setIsMenuOpen(false)}
@@ -428,10 +693,13 @@ export default function Dashboard() {
         `}
         style={{ background: "linear-gradient(to bottom, #040e1d, #07162d, #0c2340)" }}
       >
+        {/* Decorative background blobs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-[-5%] right-[-20%] w-48 h-48 bg-blue-500 rounded-full mix-blend-screen filter blur-[80px] opacity-[0.08]" />
           <div className="absolute bottom-[20%] left-[-10%] w-56 h-56 bg-indigo-500 rounded-full mix-blend-screen filter blur-[90px] opacity-[0.06]" />
         </div>
+
+        {/* Subtle grid texture */}
         <div
           className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
@@ -440,6 +708,8 @@ export default function Dashboard() {
             backgroundSize: "40px 40px",
           }}
         />
+
+        {/* Brand header */}
         <div className="relative z-10 p-6 flex items-center gap-3 border-b border-white/[0.06]">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
             <GraduationCap className="text-white" size={20} />
@@ -450,28 +720,41 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Navigation links */}
         <nav className="relative z-10 flex-1 overflow-y-auto px-3 py-4">
-          <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-semibold px-4 mb-3">Main Menu</p>
+          <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] font-semibold px-4 mb-3">
+            Main Menu
+          </p>
+
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = active === item.id;
+            {NAV_ITEMS.map((item) => {
+              const Icon     = item.icon;
+              const isActive = activeTab === item.id;
+
               return (
                 <li key={item.id}>
                   <button
-                    onClick={() => { setActive(item.id); setIsMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all relative ${
-                      isActive ? "text-white" : "text-slate-400 hover:text-white hover:bg-white/[0.06]"
-                    }`}
+                    onClick={() => { setActiveTab(item.id); setIsMenuOpen(false); }}
+                    className={`
+                      w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium
+                      transition-all relative
+                      ${isActive
+                        ? "text-white"
+                        : "text-slate-400 hover:text-white hover:bg-white/[0.06]"
+                      }
+                    `}
                   >
+                    {/* Active pill background — animates using layoutId */}
                     {isActive && (
                       <motion.div
                         layoutId="active-pill"
                         className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/25"
                       />
                     )}
+
                     <Icon size={17} className="relative z-10 flex-shrink-0" />
                     <span className="relative z-10">{item.label}</span>
+
                     {isActive && (
                       <ChevronRight size={14} className="relative z-10 ml-auto opacity-70" />
                     )}
@@ -482,6 +765,7 @@ export default function Dashboard() {
           </ul>
         </nav>
 
+        {/* User info card at sidebar bottom */}
         <div className="relative z-10 mx-3 mb-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-md">
@@ -489,11 +773,14 @@ export default function Dashboard() {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white truncate">{user?.FullName}</p>
-              <p className="text-[10px] text-slate-400 truncate">{user?.MatricNumber || user?.Email}</p>
+              <p className="text-[10px] text-slate-400 truncate">
+                {user?.MatricNumber || user?.Email}
+              </p>
             </div>
           </div>
         </div>
 
+        {/* Logout button */}
         <div className="relative z-10 p-3 border-t border-white/[0.06]">
           <button
             onClick={() => setShowLogoutModal(true)}
@@ -504,11 +791,19 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* ════════ MAIN ════════ */}
+
+
+
+      {/* ================================================
+          MAIN CONTENT AREA — Topbar + Tab Content
+          ================================================ */}
       <div className="flex-1 flex flex-col w-full min-w-0">
 
-        {/* ── TOPBAR ── */}
+
+        {/* ── TOP BAR ── */}
         <header className="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between">
+
+          {/* Left: hamburger + breadcrumb */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMenuOpen((s) => !s)}
@@ -516,15 +811,17 @@ export default function Dashboard() {
             >
               <Menu size={20} />
             </button>
+
             <div className="hidden md:flex items-center gap-2">
               <span className="text-xs text-slate-400 font-medium">Unicode University</span>
               <ChevronRight size={12} className="text-slate-300" />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 capitalize">
-                {navItems.find((n) => n.id === active)?.label || "Dashboard"}
+                {NAV_ITEMS.find((n) => n.id === activeTab)?.label || "Dashboard"}
               </span>
             </div>
           </div>
 
+          {/* Center: search bar */}
           <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl w-64 border border-slate-200 dark:border-slate-700">
             <Search size={14} className="text-slate-400" />
             <input
@@ -533,6 +830,7 @@ export default function Dashboard() {
             />
           </div>
 
+          {/* Right: theme toggle + notifications + avatar */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
@@ -540,12 +838,14 @@ export default function Dashboard() {
             >
               {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
             </button>
+
             <button className="relative p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               <Bell size={17} />
               {announcements.length > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
             </button>
+
             <div className="flex items-center gap-2 pl-1 border-l border-slate-200 dark:border-slate-700 ml-1">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm shadow-md shadow-blue-500/20">
                 {user?.FullName?.charAt(0) || "S"}
@@ -560,23 +860,36 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* ── PAGE CONTENT ── */}
+
+
+
+        {/* ── TAB CONTENT ── */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
 
-          {/* ═══ DASHBOARD HOME ═══ */}
-          {active === "dashboard" && (
+
+
+          {/* ========================================
+              DASHBOARD HOME TAB
+              Hero card + stats + services + charts
+              ======================================== */}
+          {activeTab === "dashboard" && (
             <>
+
+              {/* ── Hero Banner Card ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="relative rounded-3xl overflow-hidden mb-8 shadow-2xl"
                 style={{ background: "linear-gradient(135deg, #040e1d 0%, #07162d 50%, #0c2340 100%)" }}
               >
+                {/* Decorative glow blobs */}
                 <div className="absolute inset-0 pointer-events-none">
                   <div className="absolute -right-10 -top-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.12]" />
                   <div className="absolute -left-10 -bottom-10 w-64 h-64 bg-indigo-500 rounded-full mix-blend-screen filter blur-[100px] opacity-[0.10]" />
                   <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-cyan-400 rounded-full mix-blend-screen filter blur-[80px] opacity-[0.05]" />
                 </div>
+
+                {/* Grid texture */}
                 <div
                   className="absolute inset-0 opacity-[0.04] pointer-events-none"
                   style={{
@@ -585,14 +898,19 @@ export default function Dashboard() {
                     backgroundSize: "50px 50px",
                   }}
                 />
+
+                {/* Top accent line */}
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: 80 }}
                   transition={{ delay: 0.5, duration: 0.8 }}
                   className="absolute top-0 left-8 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
                 />
+
                 <div className="relative z-10 p-6 md:p-10">
                   <div className="flex flex-col md:flex-row md:items-center gap-6">
+
+                    {/* Avatar with online badge */}
                     <div className="relative flex-shrink-0">
                       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-3xl font-bold text-white shadow-2xl shadow-blue-500/30">
                         {user.FullName?.charAt(0)}
@@ -601,6 +919,8 @@ export default function Dashboard() {
                         <CheckCircle size={12} className="text-white" />
                       </div>
                     </div>
+
+                    {/* Name + email + academic details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap mb-1">
                         <h1 className="text-2xl md:text-3xl font-bold text-white">{user.FullName}</h1>
@@ -608,12 +928,19 @@ export default function Dashboard() {
                           <CheckCircle size={11} /> {user.Status || "Active"}
                         </span>
                       </div>
+
                       <p className="text-slate-400 text-sm mb-1">{user.Email}</p>
                       <div className="w-12 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mb-5" />
+
+                      {/* Academic pill rows */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {academicItems.map((item) => {
-                          const Icon = item.icon;
-                          const c = academicColorMap[item.color];
+                        {ACADEMIC_DETAILS.map((item) => {
+                          const Icon  = item.icon;
+                          const c     = ACADEMIC_COLORS[item.color];
+                          const value = item.key === "Level"
+                            ? user.Level ? `${user.Level} Level` : null
+                            : user[item.key];
+
                           return (
                             <motion.div
                               key={item.label}
@@ -624,21 +951,23 @@ export default function Dashboard() {
                               <Icon size={13} className={c.icon} />
                               <div className="min-w-0">
                                 <p className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">{item.label}</p>
-                                <p className="text-xs font-bold text-white truncate">{item.value || "N/A"}</p>
+                                <p className="text-xs font-bold text-white truncate">{value || "N/A"}</p>
                               </div>
                             </motion.div>
                           );
                         })}
                       </div>
+
+                      {/* Footer row — nationality, DOB, security */}
                       <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4">
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Globe size={11} className="text-slate-500" />{user.Nationality || "N/A"}
+                          <Globe size={11} /> {user.Nationality || "N/A"}
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Calendar size={11} className="text-slate-500" />{user.DateofBirth || "N/A"}
+                          <Calendar size={11} /> {user.DateofBirth || "N/A"}
                         </span>
                         <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Shield size={11} className="text-slate-500" />256-bit SSL Secured
+                          <Shield size={11} /> 256-bit SSL Secured
                         </span>
                       </div>
                     </div>
@@ -646,45 +975,61 @@ export default function Dashboard() {
                 </div>
               </motion.div>
 
-              {/* Stats Grid */}
+
+              {/* ── Stat Cards Grid ── */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 mb-8">
                 {dataLoading
                   ? [...Array(6)].map((_, i) => (
-                      <div key={i} className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 animate-pulse">
+                      <div
+                        key={i}
+                        className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 animate-pulse"
+                      >
                         <div className="h-4 w-20 mb-4 rounded bg-slate-200 dark:bg-slate-700" />
                         <div className="h-8 w-28 rounded bg-slate-200 dark:bg-slate-700" />
                       </div>
                     ))
-                  : statCards.map((c, i) => {
-                      const Icon = c.icon;
+                  : statCards.map((card, i) => {
+                      const Icon = card.icon;
                       return (
                         <motion.div
-                          key={c.label}
+                          key={card.label}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.08 }}
                           whileHover={{ y: -4, transition: { duration: 0.2 } }}
                           className="relative p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-shadow overflow-hidden group"
                         >
-                          <div className={`absolute -right-6 -top-6 w-28 h-28 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-br ${c.gradient}`} />
-                          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white mb-4 shadow-md`}>
+                          <div className={`absolute -right-6 -top-6 w-28 h-28 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-500 bg-gradient-to-br ${card.gradient}`} />
+
+                          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-white mb-4 shadow-md`}>
                             <Icon size={20} />
                           </div>
-                          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{c.label}</p>
-                          <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                            <Counter value={c.value} decimals={c.decimals || 0} suffix={c.suffix || ""} />
+
+                          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+                            {card.label}
                           </p>
-                          <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${c.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+
+                          <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                            <Counter
+                              value={card.value}
+                              decimals={card.decimals || 0}
+                              suffix={card.suffix || ""}
+                            />
+                          </p>
+
+                          <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${card.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
                         </motion.div>
                       );
                     })}
               </div>
 
-              {/* Quick Services */}
+
+              {/* ── Quick Services Grid ── */}
               <div className="mb-6">
                 <SectionHeader icon={BookOpen} label="Quick Services" color="blue" />
+
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {services.map((s, i) => {
+                  {SERVICES.map((s, i) => {
                     const Icon = s.icon;
                     return (
                       <motion.button
@@ -693,30 +1038,34 @@ export default function Dashboard() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.05 }}
                         whileHover={{ y: -4 }}
-                        onClick={() => setActive(s.target)}
+                        onClick={() => setActiveTab(s.target)}
                         className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg flex flex-col items-center gap-3 transition-shadow group"
                       >
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform`}>
                           <Icon size={22} />
                         </div>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 text-center leading-tight">{s.label}</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 text-center leading-tight">
+                          {s.label}
+                        </span>
                       </motion.button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Charts */}
+
+              {/* ── Charts Row ── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {[
-                  { title: "CGPA Trend", data: cgpaTrend, dataKey: "cgpa", type: "line", empty: "No performance data", emptySub: "CGPA history will appear here." },
-                  { title: "Semester GPA", data: semesterChartData, dataKey: "gpa", type: "bar", empty: "No GPA data", emptySub: "Semester results will appear here." },
+                  { title: "CGPA Trend",  data: cgpaTrend,  dataKey: "cgpa", type: "line", empty: "No performance data", emptySub: "CGPA history will appear here." },
+                  { title: "Semester GPA", data: semesterGPA, dataKey: "gpa",  type: "bar",  empty: "No GPA data",       emptySub: "Semester results will appear here." },
                 ].map((chart) => (
                   <div key={chart.title} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                     <div className="flex items-center gap-2 mb-5">
                       <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
                       <h3 className="font-bold text-slate-800 dark:text-white">{chart.title}</h3>
                     </div>
+
                     {chart.data.length === 0 ? (
                       <EmptyState title={chart.empty} subtitle={chart.emptySub} />
                     ) : chart.type === "line" ? (
@@ -752,8 +1101,14 @@ export default function Dashboard() {
             </>
           )}
 
-          {/* ═══ COURSE REGISTRATION ═══ */}
-          {active === "courses" && (
+
+
+
+          {/* ========================================
+              COURSE REGISTRATION TAB
+              Searchable list of all available courses
+              ======================================== */}
+          {activeTab === "courses" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -768,6 +1123,8 @@ export default function Dashboard() {
                   Total Units: {totalUnits}
                 </span>
               </div>
+
+              {/* Search + filter row */}
               <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700/50 px-3 py-2.5 rounded-xl flex-1 border border-slate-200 dark:border-slate-600">
                   <Search size={15} className="text-slate-400" />
@@ -778,6 +1135,7 @@ export default function Dashboard() {
                     className="bg-transparent outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                   />
                 </div>
+
                 <select
                   value={semesterFilter}
                   onChange={(e) => setSemesterFilter(e.target.value)}
@@ -788,6 +1146,8 @@ export default function Dashboard() {
                   <option value="Second">Second Semester</option>
                 </select>
               </div>
+
+              {/* Course list */}
               {dataLoading ? (
                 <div className="space-y-3">
                   {[...Array(4)].map((_, i) => (
@@ -795,50 +1155,53 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : filteredCourses.length === 0 ? (
-                <EmptyState icon={BookOpen} title="No courses available" subtitle="Courses will appear here once added by admin." />
+                <EmptyState
+                  icon={BookOpen}
+                  title="No courses available"
+                  subtitle="Courses will appear here once added by admin."
+                />
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                   {filteredCourses.map((course, i) => {
-                    // ✅ FIXED: admin saves as lowercase code, title, credits, semester
-                    const courseCode = course.code || course.CourseCode || course.Code || "";
-                    const courseTitle = course.title || course.CourseTitle || course.Title || "";
-                    const courseUnits = course.credits || course.Units || course.units || 0;
-                    const courseSemester = course.semester || course.Semester || "";
-                    const courseLecturer = course.Lecturer || course.lecturer || "";
-                    const reg = isRegistered(courseCode);
+                    const code     = course.code || course.CourseCode || course.Code || "";
+                    const title    = course.title || course.CourseTitle || course.Title || "";
+                    const units    = course.credits || course.Units || course.units || 0;
+                    const semester = course.semester || course.Semester || "";
+                    const lecturer = course.Lecturer || course.lecturer || "";
+                    const registered = isCourseRegistered(code);
+
                     return (
                       <motion.div
-                        key={courseCode || i}
+                        key={code || i}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
                         className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                          reg
+                          registered
                             ? "border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5"
                             : "border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50"
                         }`}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-slate-800 dark:text-white">{courseCode}</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{code}</span>
                             <span className="text-xs bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-lg text-slate-500 dark:text-slate-400 font-medium">
-                              {courseUnits} Units
+                              {units} Units
                             </span>
-                            {reg && (
+                            {registered && (
                               <span className="text-xs bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-lg font-medium">
                                 Registered
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">{courseTitle}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {courseLecturer} • {courseSemester} Semester
-                          </p>
+                          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">{title}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{lecturer} • {semester} Semester</p>
                         </div>
-                        {reg ? (
+
+                        {registered ? (
                           <button
                             disabled={actionLoading}
-                            onClick={() => handleDrop(courseCode)}
+                            onClick={() => handleDrop(code)}
                             className="flex items-center gap-1.5 text-sm bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-2 rounded-xl font-semibold hover:bg-red-100 dark:hover:bg-red-500/20 transition disabled:opacity-50 border border-red-100 dark:border-red-500/20"
                           >
                             <Trash2 size={14} /> Drop
@@ -860,8 +1223,14 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ REGISTERED COURSES ═══ */}
-          {active === "registered" && (
+
+
+
+          {/* ========================================
+              MY COURSES TAB
+              Table of registered courses with pagination + export
+              ======================================== */}
+          {activeTab === "registered" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -874,13 +1243,19 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : registered.length === 0 ? (
-                <EmptyState title="No Registered Courses" subtitle="Register courses to see them here." />
+                <EmptyState
+                  title="No Registered Courses"
+                  subtitle="Register courses to see them here."
+                />
               ) : (
                 <>
+                  {/* Header with export buttons */}
                   <div className="flex flex-col md:flex-row justify-between gap-3 mb-6">
                     <div>
                       <h3 className="font-bold text-slate-800 dark:text-white text-lg">My Courses</h3>
-                      <p className="text-sm text-slate-400">{registered.length} courses registered • {totalUnits} total units</p>
+                      <p className="text-sm text-slate-400">
+                        {registered.length} courses registered • {totalUnits} total units
+                      </p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={exportPDF} className="flex items-center gap-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white px-3 py-2 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition border border-slate-200 dark:border-slate-600">
@@ -891,6 +1266,8 @@ export default function Dashboard() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Search box */}
                   <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700/50 px-3 py-2.5 rounded-xl mb-5 border border-slate-200 dark:border-slate-600">
                     <Search size={14} className="text-slate-400" />
                     <input
@@ -900,6 +1277,8 @@ export default function Dashboard() {
                       className="bg-transparent outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
                     />
                   </div>
+
+                  {/* Table */}
                   <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
                     <table className="w-full text-sm">
                       <thead>
@@ -916,7 +1295,9 @@ export default function Dashboard() {
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                         {pagedRegistered.map((c, i) => (
                           <tr key={c.id || i} className="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
-                            <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-white">{c.CourseCode || c.code}</td>
+                            <td className="py-3.5 px-4 font-bold text-slate-800 dark:text-white">
+                              {c.CourseCode || c.code}
+                            </td>
                             <td className="py-3.5 px-4">{c.CourseTitle || c.title}</td>
                             <td className="py-3.5 px-4">{c.Units || c.units}</td>
                             <td className="py-3.5 px-4">{c.Semester || c.semester}</td>
@@ -931,6 +1312,8 @@ export default function Dashboard() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination buttons */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 mt-5">
                       {Array.from({ length: totalPages }).map((_, i) => (
@@ -953,22 +1336,29 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ PERFORMANCE ═══ */}
-          {active === "performance" && (
+
+
+
+          {/* ========================================
+              PERFORMANCE TAB
+              CGPA Trend + Semester GPA charts
+              ======================================== */}
+          {activeTab === "performance" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-1 lg:grid-cols-2 gap-6"
             >
               {[
-                { title: "CGPA Trend", data: cgpaTrend, type: "line", empty: "No performance data", emptySub: "CGPA history will appear here." },
-                { title: "Semester GPA", data: semesterChartData, type: "bar", empty: "No GPA data", emptySub: "Semester results will appear here." },
+                { title: "CGPA Trend",  data: cgpaTrend,  type: "line", empty: "No performance data", emptySub: "CGPA history will appear here." },
+                { title: "Semester GPA", data: semesterGPA, type: "bar",  empty: "No GPA data",       emptySub: "Semester results will appear here." },
               ].map((chart) => (
                 <div key={chart.title} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                   <div className="flex items-center gap-2 mb-5">
                     <div className="w-1 h-5 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
                     <h3 className="font-bold text-slate-800 dark:text-white">{chart.title}</h3>
                   </div>
+
                   {chart.data.length === 0 ? (
                     <EmptyState title={chart.empty} subtitle={chart.emptySub} />
                   ) : chart.type === "line" ? (
@@ -997,8 +1387,14 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ RESULTS ═══ */}
-          {active === "results" && (
+
+
+
+          {/* ========================================
+              RESULTS TAB
+              Table of published grades
+              ======================================== */}
+          {activeTab === "results" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1008,6 +1404,7 @@ export default function Dashboard() {
                 <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-fuchsia-600 rounded-full" />
                 <h3 className="font-bold text-slate-800 dark:text-white text-lg">Results & Grades</h3>
               </div>
+
               {dataLoading ? (
                 <div className="space-y-3">
                   {[...Array(4)].map((_, i) => (
@@ -1015,14 +1412,20 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : results.length === 0 ? (
-                <EmptyState icon={Award} title="No Results Yet" subtitle="Your grades will appear here once published." />
+                <EmptyState
+                  icon={Award}
+                  title="No Results Yet"
+                  subtitle="Your grades will appear here once published."
+                />
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-700/50 text-left text-slate-500 dark:text-slate-400">
                         {["Course", "Units", "Score", "Grade"].map((h) => (
-                          <th key={h} className="py-3 px-4 font-semibold text-xs uppercase tracking-wider">{h}</th>
+                          <th key={h} className="py-3 px-4 font-semibold text-xs uppercase tracking-wider">
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -1030,16 +1433,16 @@ export default function Dashboard() {
                       {results.map((r, i) => (
                         <tr key={r.id || i} className="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
                           <td className="py-3.5 px-4">
-                            {/* ✅ FIXED: admin saves as course_code and course_title */}
-                            <p className="font-bold text-slate-800 dark:text-white">{r.course_code || r.CourseCode || r.code}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{r.course_title || r.CourseTitle || r.title}</p>
+                            <p className="font-bold text-slate-800 dark:text-white">
+                              {r.course_code || r.CourseCode || r.code}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {r.course_title || r.CourseTitle || r.title}
+                            </p>
                           </td>
-                          {/* ✅ FIXED: admin saves as units (lowercase) */}
                           <td className="py-3.5 px-4">{r.units || r.Units}</td>
-                          {/* ✅ FIXED: admin saves as score (lowercase) */}
                           <td className="py-3.5 px-4 font-semibold">{r.score ?? r.Score}</td>
                           <td className="py-3.5 px-4">
-                            {/* ✅ FIXED: admin saves as grade (lowercase) */}
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${gradeColor(r.grade || r.Grade)}`}>
                               {r.grade || r.Grade}
                             </span>
@@ -1053,8 +1456,14 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ TIMETABLE ═══ */}
-          {active === "timetable" && (
+
+
+
+          {/* ========================================
+              TIMETABLE TAB
+              Weekly schedule grouped by day
+              ======================================== */}
+          {activeTab === "timetable" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1064,19 +1473,27 @@ export default function Dashboard() {
                 <div className="w-1 h-6 bg-gradient-to-b from-pink-500 to-rose-600 rounded-full" />
                 <h3 className="font-bold text-slate-800 dark:text-white text-lg">Weekly Timetable</h3>
               </div>
+
               {dataLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {[...Array(5)].map((_, i) => (
                     <div key={i} className="h-32 rounded-xl bg-slate-100 dark:bg-slate-700 animate-pulse" />
                   ))}
                 </div>
-              ) : timetableRows.length === 0 ? (
-                <EmptyState icon={Calendar} title="No Timetable" subtitle="Your class schedule will appear here." />
+              ) : timetable.length === 0 ? (
+                <EmptyState
+                  icon={Calendar}
+                  title="No Timetable"
+                  subtitle="Your class schedule will appear here."
+                />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {days.map((day) => (
+                  {DAYS.map((day) => (
                     <div key={day}>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">{day}</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">
+                        {day}
+                      </p>
+
                       <div className="space-y-2">
                         {(schedule[day] || []).map((cls, i) => (
                           <motion.div
@@ -1085,25 +1502,26 @@ export default function Dashboard() {
                             className="p-3 rounded-xl border border-indigo-100 dark:border-slate-700"
                             style={{ background: "linear-gradient(135deg, #f0f4ff, #f5f0ff)" }}
                           >
-                            {/* ✅ FIXED: admin saves as course_title (lowercase) */}
                             <p className="font-bold text-sm text-slate-800">
                               {cls.course_title || cls.Course || cls.course}
                             </p>
-                            {/* ✅ FIXED: admin saves as start_time */}
                             <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                               <Clock size={10} />
                               {cls.start_time || cls.Time || cls.time}
                               {cls.end_time ? ` - ${cls.end_time}` : ""}
                             </p>
-                            {/* ✅ FIXED: admin saves as venue */}
                             <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <MapPin size={10} />{cls.venue || cls.Room || cls.room}
+                              <MapPin size={10} />
+                              {cls.venue || cls.Room || cls.room}
                             </p>
                             <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <User size={10} />{cls.lecturer || cls.Lecturer}
+                              <User size={10} />
+                              {cls.lecturer || cls.Lecturer}
                             </p>
                           </motion.div>
                         ))}
+
+                        {/* Empty day placeholder */}
                         {(schedule[day] || []).length === 0 && (
                           <div className="p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
                             <p className="text-xs text-slate-300 dark:text-slate-600">No classes</p>
@@ -1117,8 +1535,14 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ ANNOUNCEMENTS ═══ */}
-          {active === "announcements" && (
+
+
+
+          {/* ========================================
+              ANNOUNCEMENTS TAB
+              List of all announcements with badges
+              ======================================== */}
+          {activeTab === "announcements" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1130,6 +1554,7 @@ export default function Dashboard() {
                   <Megaphone size={18} className="text-amber-500" /> Announcements
                 </h3>
               </div>
+
               {dataLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => (
@@ -1137,7 +1562,11 @@ export default function Dashboard() {
                   ))}
                 </div>
               ) : announcements.length === 0 ? (
-                <EmptyState icon={Megaphone} title="No Announcements" subtitle="Check back later for updates." />
+                <EmptyState
+                  icon={Megaphone}
+                  title="No Announcements"
+                  subtitle="Check back later for updates."
+                />
               ) : (
                 <div className="space-y-3">
                   {announcements.map((a, i) => (
@@ -1149,18 +1578,19 @@ export default function Dashboard() {
                       className="p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        {/* ✅ FIXED: admin saves priority not Type */}
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${announcementColor(a.priority || a.type || a.Type)}`}>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${announcementBadgeColor(a.priority || a.type || a.Type)}`}>
                           {a.priority || a.type || a.Type}
                         </span>
                         <span className="text-xs text-slate-400">
                           {a.created_at ? new Date(a.created_at).toLocaleDateString() : ""}
                         </span>
                       </div>
-                      {/* ✅ FIXED: admin saves as title (lowercase) */}
-                      <p className="font-bold text-sm text-slate-800 dark:text-white">{a.title || a.Title}</p>
-                      {/* ✅ FIXED: admin saves as content not Body */}
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{a.content || a.Body || a.body}</p>
+                      <p className="font-bold text-sm text-slate-800 dark:text-white">
+                        {a.title || a.Title}
+                      </p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        {a.content || a.Body || a.body}
+                      </p>
                     </motion.div>
                   ))}
                 </div>
@@ -1168,13 +1598,20 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ═══ PROFILE ═══ */}
-          {active === "profile" && (
+
+
+
+          {/* ========================================
+              PROFILE TAB
+              Personal + academic information cards
+              ======================================== */}
+          {activeTab === "profile" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
+              {/* Hero profile card */}
               <div
                 className="relative rounded-3xl overflow-hidden p-8 shadow-xl"
                 style={{ background: "linear-gradient(135deg, #040e1d 0%, #07162d 60%, #0c2340 100%)" }}
@@ -1190,6 +1627,7 @@ export default function Dashboard() {
                     backgroundSize: "40px 40px",
                   }}
                 />
+
                 <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-5">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-3xl font-bold text-white shadow-2xl shadow-blue-500/30 flex-shrink-0">
                     {user.FullName?.charAt(0)}
@@ -1213,31 +1651,29 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Academic information card */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
                 <SectionHeader icon={GraduationCap} label="Academic Information" color="indigo" />
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { icon: Hash, label: "Matric Number", value: user.MatricNumber, color: "blue" },
-                    { icon: Building2, label: "Department", value: user.Department, color: "indigo" },
-                    { icon: Layers, label: "Level", value: user.Level ? `${user.Level} Level` : null, color: "violet" },
-                    { icon: BookMarked, label: "Current Semester", value: user.Session, color: "cyan" },
-                  ].map((item) => {
-                    const Icon = item.icon;
-                    const colorStyles = {
-                      blue:   { bg: "bg-blue-50 dark:bg-blue-500/10",   icon: "text-blue-500",   badge: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300"   },
-                      indigo: { bg: "bg-indigo-50 dark:bg-indigo-500/10", icon: "text-indigo-500", badge: "bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300" },
-                      violet: { bg: "bg-violet-50 dark:bg-violet-500/10", icon: "text-violet-500", badge: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
-                      cyan:   { bg: "bg-cyan-50 dark:bg-cyan-500/10",   icon: "text-cyan-600",   badge: "bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300"   },
-                    }[item.color];
+                  {ACADEMIC_DETAILS.map((item) => {
+                    const Icon    = item.icon;
+                    const colors  = PROFILE_COLORS[item.color];
+                    const value   = item.key === "Level"
+                      ? user.Level ? `${user.Level} Level` : null
+                      : user[item.key];
+
                     return (
-                      <div key={item.label} className={`flex items-start gap-3 p-4 rounded-xl ${colorStyles.bg}`}>
+                      <div key={item.label} className={`flex items-start gap-3 p-4 rounded-xl ${colors.bg}`}>
                         <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shadow-sm flex-shrink-0">
-                          <Icon size={16} className={colorStyles.icon} />
+                          <Icon size={16} className={colors.icon} />
                         </div>
                         <div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">{item.label}</p>
-                          <span className={`text-sm font-bold px-2.5 py-1 rounded-lg ${colorStyles.badge}`}>
-                            {item.value || "N/A"}
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">
+                            {item.label}
+                          </p>
+                          <span className={`text-sm font-bold px-2.5 py-1 rounded-lg ${colors.badge}`}>
+                            {value || "N/A"}
                           </span>
                         </div>
                       </div>
@@ -1246,57 +1682,83 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Personal information card */}
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
                 <SectionHeader icon={User} label="Personal Information" color="blue" />
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   {[
-                    { label: "Full Name", value: user.FullName },
-                    { label: "Email Address", value: user.Email },
-                    { label: "Date of Birth", value: user.DateofBirth },
-                    { label: "Nationality", value: user.Nationality },
-                    { label: "Status", value: user.Status },
+                    { label: "Full Name",      value: user.FullName      },
+                    { label: "Email Address",  value: user.Email         },
+                    { label: "Date of Birth",  value: user.DateofBirth   },
+                    { label: "Nationality",    value: user.Nationality   },
+                    { label: "Status",          value: user.Status        },
                   ].map((f) => (
                     <div key={f.label} className="border-b border-slate-50 dark:border-slate-700 pb-4">
-                      <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">{f.label}</p>
+                      <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">
+                        {f.label}
+                      </p>
                       <p className="font-semibold text-slate-800 dark:text-white">{f.value || "—"}</p>
                     </div>
                   ))}
+
                   <div className="sm:col-span-2 border-b border-slate-50 dark:border-slate-700 pb-4">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">House Address</p>
-                    <p className="font-semibold text-slate-800 dark:text-white">{user.HouseAddress || "—"}</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">
+                      House Address
+                    </p>
+                    <p className="font-semibold text-slate-800 dark:text-white">
+                      {user.HouseAddress || "—"}
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-50 dark:border-slate-700">
                   <Shield size={13} className="text-slate-400" />
-                  <span className="text-xs text-slate-400">256-bit SSL encrypted • All data is securely stored</span>
+                  <span className="text-xs text-slate-400">
+                    256-bit SSL encrypted • All data is securely stored
+                  </span>
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* ═══ FEES / SETTINGS ═══ */}
-          {(active === "fees" || active === "settings") && (
+
+
+
+          {/* ========================================
+              FEES + SETTINGS TABS (coming soon)
+              ======================================== */}
+          {(activeTab === "fees" || activeTab === "settings") && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm"
             >
               <EmptyState
-                icon={active === "fees" ? Wallet : Settings}
-                title={active === "fees" ? "Fees Portal" : "Settings"}
+                icon={activeTab === "fees" ? Wallet : Settings}
+                title={activeTab === "fees" ? "Fees Portal" : "Settings"}
                 subtitle="This section is coming soon."
               />
             </motion.div>
           )}
 
+
         </main>
       </div>
 
-      {/* ════════ CONFIRM MODAL ════════ */}
+
+
+
+      {/* ================================================
+          CONFIRM REGISTRATION MODAL
+          Shown when a student clicks "Register" on a course
+          ================================================ */}
       <AnimatePresence>
         {confirmCourse && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={() => setConfirmCourse(null)}
             className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           >
@@ -1308,6 +1770,7 @@ export default function Dashboard() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-700"
             >
+              {/* Header */}
               <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
@@ -1319,11 +1782,16 @@ export default function Dashboard() {
                   <X size={20} />
                 </button>
               </div>
+
+              {/* Body */}
               <div className="p-6">
                 <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-4">
-                  {/* ✅ FIXED: admin saves as code and title */}
-                  <p className="font-bold text-slate-800 dark:text-white">{confirmCourse.code || confirmCourse.CourseCode}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">{confirmCourse.title || confirmCourse.CourseTitle}</p>
+                  <p className="font-bold text-slate-800 dark:text-white">
+                    {confirmCourse.code || confirmCourse.CourseCode}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    {confirmCourse.title || confirmCourse.CourseTitle}
+                  </p>
                   <div className="flex gap-3 mt-2">
                     <span className="text-xs bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg font-medium">
                       {confirmCourse.credits || confirmCourse.Units || confirmCourse.units} Units
@@ -1337,6 +1805,8 @@ export default function Dashboard() {
                   Are you sure you want to register for this course?
                 </p>
               </div>
+
+              {/* Footer buttons */}
               <div className="p-5 border-t border-slate-100 dark:border-slate-700 flex gap-3">
                 <button
                   onClick={() => setConfirmCourse(null)}
@@ -1357,11 +1827,18 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
 
-      {/* ════════ LOGOUT MODAL ════════ */}
+
+
+
+      {/* ================================================
+          LOGOUT CONFIRMATION MODAL
+          ================================================ */}
       <AnimatePresence>
         {showLogoutModal && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={() => setShowLogoutModal(false)}
             className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           >
@@ -1373,6 +1850,7 @@ export default function Dashboard() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-100 dark:border-slate-700"
             >
+              {/* Header with red gradient */}
               <div
                 className="p-6 text-center"
                 style={{ background: "linear-gradient(135deg, #040e1d, #07162d)" }}
@@ -1383,6 +1861,8 @@ export default function Dashboard() {
                 <h2 className="text-xl font-bold text-white mb-1">Ready to leave?</h2>
                 <p className="text-sm text-slate-400">You will be returned to the login screen.</p>
               </div>
+
+              {/* Buttons */}
               <div className="p-5 flex gap-3">
                 <button
                   onClick={() => setShowLogoutModal(false)}
@@ -1401,6 +1881,7 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
